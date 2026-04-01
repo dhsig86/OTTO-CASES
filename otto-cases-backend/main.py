@@ -56,7 +56,7 @@ async def generate_case(case_data: CaseInput):
         user_prompt = f"Dados do Caso Clínico:\n{case_data.model_dump_json(indent=2)}\n\nPor favor, retorne o JSON estruturado conforme as instruções do sistema."
         
         response = await client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt}
