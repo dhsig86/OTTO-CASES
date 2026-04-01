@@ -34,10 +34,12 @@ export default function CaseWizard({ onBack }) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   const generateAiReport = async () => {
     setLoading(true);
     try {
-      const response = await axios.post("http://localhost:8000/api/generate-case", formData);
+      const response = await axios.post(`${API_URL}/api/generate-case`, formData);
       const data = response.data;
       
       setAiOutput(prev => ({
@@ -60,7 +62,7 @@ export default function CaseWizard({ onBack }) {
 
   const handleDownloadPdf = async () => {
     try {
-      const response = await axios.post("http://localhost:8000/api/generate-poster-pdf", {
+      const response = await axios.post(`${API_URL}/api/generate-poster-pdf`, {
         title: aiOutput.title,
         authorName: formData.authorName,
         institution: formData.institution,
