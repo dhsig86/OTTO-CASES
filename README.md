@@ -2,6 +2,10 @@
 
 OTTO CASES é uma plataforma de Inteligência Clínica baseada em Inteligência Artificial para estruturação e geração automática de Relatos de Caso e E-Pôsteres na área de Otorrinolaringologia e Cirurgia Cérvico-Facial. O sistema é programado para seguir as diretrizes estritas do **CARE/SCARE** e os formatos do congresso da **FORL** e **ABORL-CCF**.
 
+## Demonstração Visual
+
+![Tutorial Animado do OTTO CASES](tutorial.webp)
+
 ## Arquitetura e Deploy
 
 O sistema é dividido em duas partes, cada uma com seus arquivos de deploy automáticos:
