@@ -1,0 +1,24 @@
+Idade: 45
+Sexo: Feminino
+Profissão: Professora de Ensino Médio
+Queixa Principal (QP): Perda de audição no ouvido esquerdo há 1 ano e um "barulho do coração" pulsando dentro da orelha, que piora à noite.
+História da Moléstia Atual (HMA): Paciente hígida, sem histórico familiar de perda auditiva. Relata zumbido pulsátil unilateral à esquerda de início insidioso, associado a hipoacusia ipsilateral progressiva. Não apresentou otorréia, vertigem ou paralisia facial.
+
+Exame Físico: 
+- Oroscopia e laringoscopia normais. 
+- Rinoscopia: fossas nasais pérvias, mucosas coradas. 
+- Otoscopia direita: normal. 
+- Otoscopia esquerda: membrana timpânica íntegra, porém com massa pulsátil avermelhada retrotimpânica preenchendo o hipotímpano e mesotímpano. Sinal de Brown-Marc positivo.
+- Exame dos pares cranianos preservado. Ausência de massas cervicais palpáveis.
+
+Exames Complementares: 
+- Audiometria tonal: anacusia à esquerda (PTA > 90dB). Escuta normal à direita.
+- Tomografia Computadorizada (TC) de osso temporal: lesão de partes moles no ouvido médio esquerdo, de 1,2 cm x 0,9 cm, com erosão óssea do teto do bulbo jugular e estendendo-se para a caixa timpânica. Compatível com glomus jugulotimpânico.
+
+Conduta e Intervenção: 
+Indicada abordagem cirúrgica via mastoidectomia transmastoídea e recesso do facial para excisão de tumor glômico do ouvido médio, com anestesia geral. Sangramento intraoperatório de 150ml.
+
+Evolução e Desfecho:
+Paciente obteve alta no segundo dia pós-operatório (D2). Não houve complicações pós-operatórias imediatas (Clavien-Dindo I). No seguimento ambulatorial de 6 meses, observou-se ausência total de zumbido pulsátil, embora com manutenção da anacusia unilateral esperada à esquerda.
+
+Palavras-Chave (MeSH): Paraganglioma timpânico, Perda Auditiva Neurossensorial, Zumbido, Otologia.
