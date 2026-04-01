@@ -1,5 +1,0 @@
-{
-  "buildCommand": "cd otto-cases-frontend && npm install && npm run build",
-  "outputDirectory": "otto-cases-frontend/dist",
-  "framework": "vite"
-}
