@@ -1,0 +1,17 @@
+Acessos de Teste (Usuários VIP)
+👤 Usuário 1 (Rinologia)
+
+E-mail: rino@ottocases.com
+Senha: otto123
+👤 Usuário 2 (Otologia)
+
+E-mail: oto@ottocases.com
+Senha: otto123
+👤 Usuário 3 (Laringologia)
+
+E-mail: laringo@ottocases.com
+Senha: otto123
+👤 Usuário Master (Seu acesso base)
+
+E-mail: medico@ottocases.com
+Senha: 123456
