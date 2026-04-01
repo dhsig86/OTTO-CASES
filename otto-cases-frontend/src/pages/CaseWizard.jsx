@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { 
   Stethoscope, FileText, Image as ImageIcon, Send, CheckCircle, 
-  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye 
+  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save 
 } from 'lucide-react';
 import axios from 'axios';
+import { supabase } from '../supabase';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { InputField, TextAreaField } from '../components/ui/Input';
@@ -83,6 +84,43 @@ export default function CaseWizard({ onBack }) {
     } catch (error) {
       console.error("Erro ao gerar PDF", error);
       alert("Houve um erro ao gerar o PDF. Verifique o servidor.");
+    }
+  };
+
+  const handleSaveToDatabase = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("Sessão expirada. Faça login novamente.");
+        return;
+      }
+      
+      const { error } = await supabase.from('cases').insert({
+        user_id: user.id,
+        author_name: formData.authorName,
+        institution: formData.institution,
+        patient_age: formData.patientAge,
+        patient_gender: formData.patientGender,
+        patient_profession: formData.patientProfession,
+        complaint: formData.complaint,
+        history: formData.history,
+        physical_exam: formData.physicalExam,
+        diagnostics: formData.diagnostics,
+        intervention: formData.intervention,
+        outcome: formData.outcome,
+        keywords: formData.keywords,
+        ai_advisor_feedback: aiOutput.advisorFeedback,
+        ai_title: aiOutput.title,
+        ai_submission_summary: aiOutput.submissionSummary,
+        ai_draft_article: aiOutput.draftArticle,
+        ai_poster_content: aiOutput.posterContent
+      });
+      
+      if (error) throw error;
+      alert("Relato gravado com sucesso no banco de dados (Supabase)!");
+    } catch (error) {
+      console.error("Erro ao salvar no banco:", error);
+      alert("Erro ao gravar dados no Supabase. O banco foi configurado corretamente?");
     }
   };
 
@@ -206,7 +244,8 @@ export default function CaseWizard({ onBack }) {
                       </h2>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => setAiGenerated(false)}>Refazer Inputs</Button>
-                    <Button variant="success" size="sm" onClick={handleDownloadPdf}><Download size={16} /> Salvar Tudo (PDF)</Button>
+                        <Button variant="primary" size="sm" onClick={handleSaveToDatabase}><Save size={16} /> Salvar no BD</Button>
+                        <Button variant="success" size="sm" onClick={handleDownloadPdf}><Download size={16} /> PDF Pôster</Button>
                       </div>
                     </div>
                     

@@ -2,21 +2,27 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { InputField } from '../components/ui/Input';
 import { Stethoscope } from 'lucide-react';
+import { supabase } from '../supabase';
 
 export default function Login({ onLoginComplete }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Todo: Hook this up to Supabase auth later
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate login
-    setTimeout(() => {
-      setLoading(false);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+    
+    if (error) {
+      alert("Erro de autenticação: Verifique seu e-mail e senha.");
+    } else {
       onLoginComplete();
-    }, 1000);
+    }
   };
 
   return (
