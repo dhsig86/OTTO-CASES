@@ -1,0 +1,475 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Stethoscope, 
+  FileText, 
+  Image as ImageIcon, 
+  Send, 
+  CheckCircle, 
+  ChevronRight, 
+  ChevronLeft, 
+  User, 
+  Activity, 
+  ClipboardList,
+  AlertCircle,
+  Download,
+  Languages,
+  Eye
+} from 'lucide-react';
+
+// --- Componentes de UI Auxiliares ---
+
+const Card = ({ children, className = "" }) => (
+  <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, onClick, variant = "primary", disabled = false, className = "" }) => {
+  const base = "px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2";
+  const variants = {
+    primary: "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300",
+    secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+    outline: "border border-slate-300 text-slate-600 hover:bg-slate-50",
+    success: "bg-emerald-600 text-white hover:bg-emerald-700",
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${className}`}>
+      {children}
+    </button>
+  );
+};
+
+const InputField = ({ label, placeholder, value, onChange, type = "text", required = false }) => (
+  <div className="flex flex-col gap-1.5 w-full">
+    <label className="text-sm font-semibold text-slate-700">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <input 
+      type={type}
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 transition-all"
+    />
+  </div>
+);
+
+const TextAreaField = ({ label, placeholder, value, onChange, rows = 3 }) => (
+  <div className="flex flex-col gap-1.5 w-full">
+    <label className="text-sm font-semibold text-slate-700">{label}</label>
+    <textarea 
+      rows={rows}
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 transition-all resize-none"
+    />
+  </div>
+);
+
+// --- Componente Principal ---
+
+export default function App() {
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
+  
+  // Estado do Formulário (Mapeado com CARE/SCARE)
+  const [formData, setFormData] = useState({
+    authorName: "",
+    institution: "",
+    ethicsApproval: false,
+    patientAge: "",
+    patientGender: "",
+    complaint: "",
+    history: "",
+    physicalExam: "",
+    diagnostics: "", // Resultados de Audiometria/TC/RM
+    intervention: "", // Detalhes Cirúrgicos
+    outcome: "",
+    keywords: ""
+  });
+
+  // Estado da Resposta da IA (Simulada)
+  const [aiOutput, setAiOutput] = useState({
+    title: "",
+    abstractEn: "",
+    discussion: "",
+    conclusion: ""
+  });
+
+  const steps = [
+    { id: 'meta', title: 'Autoria e Ética', icon: <User size={18} /> },
+    { id: 'patient', title: 'Paciente e HMA', icon: <Activity size={18} /> },
+    { id: 'exam', title: 'Exame e Diagnóstico', icon: <Stethoscope size={18} /> },
+    { id: 'treatment', title: 'Conduta e Evolução', icon: <ClipboardList size={18} /> },
+    { id: 'validation', title: 'Geração e Validação', icon: <Send size={18} /> }
+  ];
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const simulateAiGeneration = () => {
+    setLoading(true);
+    // Simulando chamada ao Backend Python / OpenAI
+    setTimeout(() => {
+      setAiOutput({
+        title: `Relato de Caso: ${formData.complaint || "Patologia Rara em Otorrinolaringologia"}`,
+        abstractEn: "Introduction: The present case discusses a rare anatomical variation identified during routine endoscopic sinus surgery... Methods: A descriptive case report following CARE guidelines... Results: The patient showed significant improvement after targeted surgical intervention... Conclusion: Awareness of these variations is crucial for preventing iatrogenic complications.",
+        discussion: "A discussão deste caso fundamenta-se na raridade epidemiológica encontrada. Comparando com a literatura atual da ABORL-CCF, observamos que apenas 2% dos pacientes apresentam esta conformação...",
+        conclusion: "Em conclusão, este relato enfatiza a necessidade de exames de imagem de alta resolução em casos de rinossinusite recalcitrante."
+      });
+      setAiGenerated(true);
+      setLoading(false);
+      setStep(4);
+    }, 2000);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
+      {/* Header */}
+      <header className="max-w-6xl mx-auto flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-lg text-white">
+            <Stethoscope size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">OTTO SCI</h1>
+            <p className="text-slate-500 text-sm font-medium">Fazedor de Artigos Científicos ORL</p>
+          </div>
+        </div>
+        <div className="hidden md:flex gap-4">
+          <div className="text-right">
+            <p className="text-xs text-slate-400 uppercase font-bold">Status da Sessão</p>
+            <p className="text-sm font-semibold text-emerald-600 flex items-center gap-1 justify-end">
+              <CheckCircle size={14} /> Médico Autenticado
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Lado Esquerdo: Navegação e Formulário */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          
+          {/* Indicador de Passos */}
+          <Card className="p-4 flex justify-between overflow-x-auto">
+            {steps.map((s, idx) => (
+              <div key={s.id} className={`flex items-center gap-2 px-3 py-1 rounded-full whitespace-nowrap ${step === idx ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+                {s.icon}
+                <span className="text-xs font-bold uppercase tracking-wider">{s.title}</span>
+                {idx < steps.length - 1 && <ChevronRight size={14} className="ml-2 text-slate-300" />}
+              </div>
+            ))}
+          </Card>
+
+          {/* Área do Formulário */}
+          <Card className="p-6 md:p-8 min-h-[500px] flex flex-col">
+            {step === 0 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <User className="text-blue-600" /> Dados Acadêmicos
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputField 
+                    label="Autor Principal" 
+                    placeholder="Nome completo do apresentador" 
+                    value={formData.authorName}
+                    onChange={(v) => handleInputChange('authorName', v)}
+                    required
+                  />
+                  <InputField 
+                    label="Instituição / Serviço" 
+                    placeholder="Ex: Hospital das Clínicas" 
+                    value={formData.institution}
+                    onChange={(v) => handleInputChange('institution', v)}
+                  />
+                </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex gap-3">
+                  <AlertCircle className="text-amber-600 shrink-0" />
+                  <div className="text-sm text-amber-800">
+                    <p className="font-bold">Aviso Ético (Mandatório):</p>
+                    <p>Ao prosseguir, você confirma que possui o Termo de Consentimento Livre e Esclarecido assinado pelo paciente ou aprovação do CEP.</p>
+                    <label className="mt-3 flex items-center gap-2 cursor-pointer font-bold">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.ethicsApproval}
+                        onChange={(e) => handleInputChange('ethicsApproval', e.target.checked)}
+                        className="rounded text-blue-600" 
+                      />
+                      Eu declaro conformidade ética.
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Activity className="text-blue-600" /> O Caso Clínico
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <InputField label="Idade" placeholder="Ex: 45" value={formData.patientAge} onChange={(v) => handleInputChange('patientAge', v)} />
+                  <InputField label="Sexo" placeholder="M / F" value={formData.patientGender} onChange={(v) => handleInputChange('patientGender', v)} />
+                </div>
+                <TextAreaField 
+                  label="Queixa Principal (QP)" 
+                  placeholder="Relate o sintoma e o tempo de duração..." 
+                  value={formData.complaint}
+                  onChange={(v) => handleInputChange('complaint', v)}
+                />
+                <TextAreaField 
+                  label="História da Moléstia Atual (HMA)" 
+                  placeholder="Evolução, tratamentos prévios e comorbidades..." 
+                  value={formData.history}
+                  onChange={(v) => handleInputChange('history', v)}
+                />
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Stethoscope className="text-blue-600" /> Investigação
+                </h2>
+                <TextAreaField 
+                  label="Exame Físico Especializado (Otoscopia, Rinoscopia, Laringoscopia)" 
+                  placeholder="Descreva detalhadamente os achados objetivos..." 
+                  value={formData.physicalExam}
+                  onChange={(v) => handleInputChange('physicalExam', v)}
+                />
+                <TextAreaField 
+                  label="Exames Complementares" 
+                  placeholder="Audiometria (limiares), TC, RM, Laboratório..." 
+                  value={formData.diagnostics}
+                  onChange={(v) => handleInputChange('diagnostics', v)}
+                />
+                <div className="p-4 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-300 hover:text-blue-500 cursor-pointer transition-all">
+                  <ImageIcon size={32} />
+                  <span className="text-sm font-medium">Upload de Imagens (Máx 4MB por Pôster)</span>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <ClipboardList className="text-blue-600" /> Resolução
+                </h2>
+                <TextAreaField 
+                  label="Conduta e Intervenção (SCARE Guidelines)" 
+                  placeholder="Descrição cirúrgica, via de acesso ou protocolo medicamentoso..." 
+                  value={formData.intervention}
+                  onChange={(v) => handleInputChange('intervention', v)}
+                />
+                <TextAreaField 
+                  label="Evolução e Desfecho" 
+                  placeholder="Acompanhamento pós-op, complicações (Clavien-Dindo) e status atual..." 
+                  value={formData.outcome}
+                  onChange={(v) => handleInputChange('outcome', v)}
+                />
+                <InputField 
+                  label="Palavras-Chave (MeSH/DeCS)" 
+                  placeholder="Ex: Sinusite, Endoscopia, Complicações" 
+                  value={formData.keywords}
+                  onChange={(v) => handleInputChange('keywords', v)}
+                />
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                {!aiGenerated ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="bg-blue-100 p-6 rounded-full text-blue-600 mb-4 animate-bounce">
+                      <Send size={48} />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2">Pronto para Gerar</h2>
+                    <p className="text-slate-500 max-w-md mb-8">
+                      Nossa IA processará seus inputs clínicos para estruturar o relato conforme as normas CARE e traduzir o abstract para a FORL.
+                    </p>
+                    <Button onClick={simulateAiGeneration} className="h-12 px-10 text-lg">
+                      Gerar Relato e Pôster
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b pb-4">
+                      <h2 className="text-xl font-bold text-emerald-600 flex items-center gap-2">
+                        <CheckCircle /> Conteúdo Sugerido pela IA
+                      </h2>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setAiGenerated(false)}>Refazer</Button>
+                        <Button variant="success" size="sm"><Download size={16} /> Baixar PDF</Button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase">Título Gerado</label>
+                        <input 
+                          className="w-full p-2 border rounded font-bold text-lg" 
+                          value={aiOutput.title} 
+                          onChange={(e) => setAiOutput({...aiOutput, title: e.target.value})}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1">
+                          <Languages size={14} /> Abstract (Mandatório Inglês - FORL)
+                        </label>
+                        <textarea 
+                          className="w-full p-3 border rounded text-sm bg-blue-50/30 font-serif leading-relaxed h-32" 
+                          value={aiOutput.abstractEn}
+                          onChange={(e) => setAiOutput({...aiOutput, abstractEn: e.target.value})}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-400 uppercase">Discussão Baseada em Evidências</label>
+                          <textarea 
+                            className="w-full p-3 border rounded text-sm h-48" 
+                            value={aiOutput.discussion}
+                            onChange={(e) => setAiOutput({...aiOutput, discussion: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-400 uppercase">Conclusão</label>
+                          <textarea 
+                            className="w-full p-3 border rounded text-sm h-48" 
+                            value={aiOutput.conclusion}
+                            onChange={(e) => setAiOutput({...aiOutput, conclusion: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-900 text-white rounded-lg flex items-start gap-3">
+                      <CheckCircle className="text-emerald-400 shrink-0 mt-1" />
+                      <div className="text-sm">
+                        <p className="font-bold">Human-in-the-Loop:</p>
+                        <p className="opacity-80">Você editou o texto acima? Sua revisão final é o selo de garantia de veracidade científica. A IA auxiliou na forma, mas você é o autor do conteúdo.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Navegação de Botões */}
+            {!loading && (
+              <div className="mt-auto pt-8 border-t flex justify-between">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setStep(s => Math.max(0, s - 1))}
+                  disabled={step === 0}
+                >
+                  <ChevronLeft size={18} /> Anterior
+                </Button>
+                {step < 4 && (
+                  <Button onClick={() => setStep(s => Math.min(steps.length - 1, s + 1))}>
+                    Próximo <ChevronRight size={18} />
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {loading && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-xl">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="font-bold text-blue-600">OTTO SCI está redigindo seu caso...</p>
+                <p className="text-xs text-slate-400 mt-2 italic">Cruzando diretrizes CARE e SCARE com normas FORL</p>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Lado Direito: Preview do E-Pôster (Simulação Visual) */}
+        <div className="lg:col-span-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+              <Eye size={18} /> Preview do E-Pôster
+            </h3>
+            <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-500 uppercase tracking-tighter">
+              Dimensões: 1080x1920
+            </span>
+          </div>
+          
+          <div className="relative group">
+            {/* O Pôster Simulado */}
+            <div className="aspect-[9/16] w-full bg-white shadow-xl border border-slate-200 rounded-lg overflow-hidden flex flex-col p-[4%] text-[10px] leading-tight select-none">
+              
+              {/* Cabeçalho do Pôster */}
+              <div className="text-center mb-4 space-y-1">
+                <h4 className="font-bold text-blue-900 text-sm uppercase leading-tight line-clamp-3">
+                  {aiOutput.title || "TÍTULO DO TRABALHO CIENTÍFICO SERÁ EXIBIDO AQUI"}
+                </h4>
+                <p className="font-bold text-slate-700">{formData.authorName || "Nome do Autor Principal"}</p>
+                <p className="text-slate-500 italic text-[8px]">{formData.institution || "Instituição de Origem"}</p>
+                <div className="h-px bg-slate-200 w-full mt-2"></div>
+              </div>
+
+              {/* Corpo do Pôster */}
+              <div className="flex-1 space-y-3">
+                <section>
+                  <h5 className="font-bold text-blue-700 uppercase border-b border-blue-100 mb-1">Apresentação do Caso</h5>
+                  <p className="text-slate-600 line-clamp-6">
+                    {formData.history || "A descrição da história clínica e achados do paciente serão formatados automaticamente neste bloco, respeitando os limites visuais do totem digital."}
+                  </p>
+                </section>
+
+                <section>
+                  <h5 className="font-bold text-blue-700 uppercase border-b border-blue-100 mb-1">Exame e Conduta</h5>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <div className="bg-slate-50 aspect-video rounded flex items-center justify-center border text-slate-300">
+                       <ImageIcon size={16} />
+                    </div>
+                    <div className="bg-slate-50 aspect-video rounded flex items-center justify-center border text-slate-300">
+                       <ImageIcon size={16} />
+                    </div>
+                  </div>
+                  <p className="mt-1 text-slate-600 line-clamp-4">
+                    {formData.intervention || "As imagens e a descrição cirúrgica são posicionadas centralmente para captar a atenção dos congressistas."}
+                  </p>
+                </section>
+
+                <section>
+                  <h5 className="font-bold text-blue-700 uppercase border-b border-blue-100 mb-1">Discussão</h5>
+                  <p className="text-slate-600 line-clamp-[12]">
+                    {aiOutput.discussion || "A IA fundamentará seu caso com citações bibliográficas, permitindo que você valide o raciocínio clínico diretamente."}
+                  </p>
+                </section>
+              </div>
+
+              {/* Rodapé do Pôster */}
+              <div className="mt-auto pt-2 border-t text-[8px] flex justify-between text-slate-400">
+                <span>CONGRESSO FORL / ABORL-CCF</span>
+                <span>OTTO SCI - Gerado via IA</span>
+              </div>
+            </div>
+
+            {/* Overlay de Interação */}
+            <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors pointer-events-none rounded-lg flex items-center justify-center">
+               <span className="bg-white/90 px-4 py-2 rounded-full shadow-lg text-blue-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                 <Eye size={16} /> Ver Tela Cheia
+               </span>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-slate-400 italic text-center px-4">
+            Este pôster será exportado em PDF de alta resolução (vetorizado) pelo backend Python para garantir nitidez nos totens do congresso.
+          </p>
+        </div>
+      </main>
+
+      <footer className="max-w-6xl mx-auto mt-12 pt-8 border-t border-slate-200 text-center text-slate-400 text-xs pb-12">
+        <p>© 2024 OTTO SCI - Clinical Case Intelligence System for Otorhinolaryngology</p>
+        <p className="mt-1 uppercase font-bold tracking-widest">Built for Physicians, by Physicians</p>
+      </footer>
+    </div>
+  );
+}

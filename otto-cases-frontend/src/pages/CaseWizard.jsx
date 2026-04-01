@@ -1,0 +1,307 @@
+import React, { useState } from 'react';
+import { 
+  Stethoscope, FileText, Image as ImageIcon, Send, CheckCircle, 
+  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye 
+} from 'lucide-react';
+import axios from 'axios';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { InputField, TextAreaField } from '../components/ui/Input';
+
+export default function CaseWizard({ onBack }) {
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    authorName: "", institution: "", ethicsApproval: false, patientAge: "", patientGender: "", patientProfession: "",
+    complaint: "", history: "", physicalExam: "", diagnostics: "", intervention: "", outcome: "", keywords: ""
+  });
+
+  const [aiOutput, setAiOutput] = useState({
+    advisorFeedback: "", title: "", submissionSummary: "", draftArticle: "", posterContent: "", posterWidth: "1080", posterHeight: "1920"
+  });
+
+  const steps = [
+    { id: 'meta', title: 'Autoria e Ética', icon: <User size={18} /> },
+    { id: 'patient', title: 'Paciente e HMA', icon: <Activity size={18} /> },
+    { id: 'exam', title: 'Exame e Diagnóstico', icon: <Stethoscope size={18} /> },
+    { id: 'treatment', title: 'Conduta e Evolução', icon: <ClipboardList size={18} /> },
+    { id: 'validation', title: 'Geração e Validação', icon: <Send size={18} /> }
+  ];
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const generateAiReport = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post("http://localhost:8000/api/generate-case", formData);
+      const data = response.data;
+      
+      setAiOutput(prev => ({
+        ...prev,
+        advisorFeedback: data.advisor_feedback || "Nenhum feedback adicional.",
+        title: data.title || `Relato de Caso: ${formData.complaint}`,
+        submissionSummary: data.submission_summary || "",
+        draftArticle: data.draft_article || "",
+        posterContent: data.poster_content || ""
+      }));
+      setAiGenerated(true);
+      setStep(4);
+    } catch (error) {
+      console.error("Erro ao gerar caso", error);
+      alert("Houve um erro de comunicação com o servidor de IA. Verifique se o backend está rodando e a API Key configurada.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      const response = await axios.post("http://localhost:8000/api/generate-poster-pdf", {
+        title: aiOutput.title,
+        authorName: formData.authorName,
+        institution: formData.institution,
+        posterContent: aiOutput.posterContent,
+        width: aiOutput.posterWidth,
+        height: aiOutput.posterHeight
+      }, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `poster_${formData.authorName.replace(/\s+/g, '_')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Erro ao gerar PDF", error);
+      alert("Houve um erro ao gerar o PDF. Verifique o servidor.");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
+      <header className="max-w-6xl mx-auto flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={onBack} className="mr-4 px-3 py-1.5 h-auto text-sm">
+            <ChevronLeft size={16} /> Voltar
+          </Button>
+          <div className="bg-blue-600 p-2 rounded-lg text-white">
+            <Stethoscope size={24} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Criador de Relato de Caso</h1>
+            <p className="text-slate-500 text-xs font-medium">Modelos CARE & SCARE</p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" size="sm" onClick={() => window.open("https://www.care-statement.org/checklist", "_blank")}>
+            <FileText size={14} className="mr-1" /> CARE
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.open("https://www.scareguideline.com/", "_blank")}>
+            <FileText size={14} className="mr-1" /> SCARE
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.open("https://www.aborlccf.org.br/eventos/normas", "_blank")}>
+            <AlertCircle size={14} className="mr-1" /> Editais ORL
+          </Button>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Formulário Interativo */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          <Card className="p-4 flex justify-between overflow-x-auto">
+            {steps.map((s, idx) => (
+              <div key={s.id} className={`flex items-center gap-2 px-3 py-1 rounded-full whitespace-nowrap ${step === idx ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+                {s.icon}
+                <span className="text-xs font-bold uppercase tracking-wider">{s.title}</span>
+                {idx < steps.length - 1 && <ChevronRight size={14} className="ml-2 text-slate-300" />}
+              </div>
+            ))}
+          </Card>
+
+          <Card className="p-6 md:p-8 min-h-[500px] flex flex-col relative text-left">
+            {step === 0 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2"><User className="text-blue-600" /> Dados Acadêmicos</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputField label="Autor Principal" placeholder="Nome completo" value={formData.authorName} onChange={(v) => handleInputChange('authorName', v)} required />
+                  <InputField label="Instituição / Serviço" placeholder="Ex: Hospital das Clínicas" value={formData.institution} onChange={(v) => handleInputChange('institution', v)} />
+                </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 text-left">
+                  <AlertCircle className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-900">
+                    <p className="font-bold">Aviso Ético (Mandatório):</p>
+                    <p className="mb-2">Ao prosseguir, você confirma que possui o Termo de Consentimento Livre e Esclarecido (TCLE) assinado pelo paciente ou aprovação do CEP.</p>
+                    <label className="flex items-center gap-2 cursor-pointer font-bold">
+                      <input type="checkbox" checked={formData.ethicsApproval} onChange={(e) => handleInputChange('ethicsApproval', e.target.checked)} className="rounded text-blue-600" />
+                      Eu declaro conformidade ética.
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2"><Activity className="text-blue-600" /> O Caso Clínico</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <InputField label="Idade" placeholder="Ex: 45" value={formData.patientAge} onChange={(v) => handleInputChange('patientAge', v)} />
+                  <InputField label="Sexo" placeholder="M / F" value={formData.patientGender} onChange={(v) => handleInputChange('patientGender', v)} />
+                  <div className="md:col-span-2">
+                    <InputField label="Profissão" placeholder="Ex: Professor, Pedreiro..." value={formData.patientProfession} onChange={(v) => handleInputChange('patientProfession', v)} />
+                  </div>
+                </div>
+                <TextAreaField label="Queixa Principal (QP)" placeholder="Relate o sintoma e o tempo de duração..." value={formData.complaint} onChange={(v) => handleInputChange('complaint', v)} />
+                <TextAreaField label="História da Moléstia Atual (HMA)" placeholder="Evolução, tratamentos prévios e comorbidades..." value={formData.history} onChange={(v) => handleInputChange('history', v)} />
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2"><Stethoscope className="text-blue-600" /> Investigação</h2>
+                <TextAreaField label="Exame Físico Especializado (Otoscopia, Rinoscopia, Laringoscopia)" placeholder="Descreva detalhadamente..." value={formData.physicalExam} onChange={(v) => handleInputChange('physicalExam', v)} />
+                <TextAreaField label="Exames Complementares" placeholder="Audiometria (limiares), TC, RM, Laboratório..." value={formData.diagnostics} onChange={(v) => handleInputChange('diagnostics', v)} />
+                <div className="p-4 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-300 hover:text-blue-500 cursor-pointer transition-all">
+                  <ImageIcon size={32} />
+                  <span className="text-sm font-medium">Upload de Imagens Clínicas (Requisito FORL)</span>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-xl font-bold flex items-center gap-2"><ClipboardList className="text-blue-600" /> Resolução</h2>
+                <TextAreaField label="Conduta e Intervenção" placeholder="Descrição cirúrgica, via de acesso ou protocolo..." value={formData.intervention} onChange={(v) => handleInputChange('intervention', v)} />
+                <TextAreaField label="Evolução e Desfecho" placeholder="Acompanhamento pós-op, Clavien-Dindo, status..." value={formData.outcome} onChange={(v) => handleInputChange('outcome', v)} />
+                <InputField label="Palavras-Chave (MeSH/DeCS)" placeholder="Ex: Sinusite, Endoscopia, Complicações" value={formData.keywords} onChange={(v) => handleInputChange('keywords', v)} />
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-6 animate-in fade-in duration-500 flex-1 flex flex-col">
+                {!aiGenerated ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center h-full my-auto">
+                    <div className="bg-blue-100 p-6 rounded-full text-blue-600 mb-4 animate-bounce">
+                      <Send size={48} />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2">Engenharia Clínica OTTO</h2>
+                    <p className="text-slate-500 max-w-md mb-8">
+                      A IA processará seus inputs para gerar o formulário CARE completo, traduzir o abstract (Summary) e montar a estrutura do E-Pôster.
+                    </p>
+                    <Button onClick={generateAiReport} className="h-12 px-10 text-lg">Processar Inteligência Clínica</Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6 text-left">
+                    <div className="flex items-center justify-between border-b pb-4">
+                      <h2 className="text-xl font-bold text-emerald-600 flex items-center gap-2">
+                        <CheckCircle /> Validação Human-in-the-Loop
+                      </h2>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setAiGenerated(false)}>Refazer Inputs</Button>
+                    <Button variant="success" size="sm" onClick={handleDownloadPdf}><Download size={16} /> Salvar Tudo (PDF)</Button>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <p className="text-sm font-bold text-orange-800 flex items-center gap-2 mb-1">
+                        <Activity size={16} /> AI Clinical Advisor
+                      </p>
+                      <p className="text-sm text-orange-900">{aiOutput.advisorFeedback}</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase">1. Título Padrão</label>
+                        <input className="w-full p-2 border border-slate-300 rounded font-bold" value={aiOutput.title} onChange={(e) => setAiOutput({...aiOutput, title: e.target.value})} />
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Languages size={14} /> 2. Submission Summary (Resumo de Inscrição)</label>
+                        <textarea className="w-full p-3 border border-slate-300 rounded text-sm font-serif h-32" value={aiOutput.submissionSummary} onChange={(e) => setAiOutput({...aiOutput, submissionSummary: e.target.value})} />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase">3. Artigo Completo (CARE / SCARE)</label>
+                        <textarea className="w-full p-3 border border-slate-300 rounded text-sm h-64" value={aiOutput.draftArticle} onChange={(e) => setAiOutput({...aiOutput, draftArticle: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!loading && (
+              <div className="mt-8 pt-4 border-t flex justify-between">
+                <Button variant="outline" onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}>
+                  <ChevronLeft size={18} /> Anterior
+                </Button>
+                {step < 4 && (
+                  <Button onClick={() => setStep(s => Math.min(steps.length - 1, s + 1))}>
+                    Próximo <ChevronRight size={18} />
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {loading && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-xl">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="font-bold text-blue-600">OTTO SCI está redigindo seu caso...</p>
+                <p className="text-xs text-slate-500 mt-2 italic text-center max-w-xs">Aplicando Linguagem Médica Formal e estruturando o checklist CARE.</p>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Lado Direito: Pôster Preview */}
+        <div className="lg:col-span-4 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Eye size={18} /> Preview do E-Pôster</h3>
+            <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-500 uppercase tracking-tighter">1080x1920 PDF</span>
+          </div>
+          
+          <div className="aspect-[9/16] w-full bg-white shadow-lg border border-slate-200 rounded-lg overflow-hidden flex flex-col p-[4%] text-[10px] leading-tight select-none">
+            <div className="text-center mb-4 space-y-1">
+              <h4 className="font-bold text-blue-900 text-sm uppercase leading-tight line-clamp-3">
+                {aiOutput.title || "TÍTULO DO TRABALHO CIENTÍFICO"}
+              </h4>
+              <p className="font-bold text-slate-700">{formData.authorName || "Nome do Autor"}</p>
+              <p className="text-slate-500 italic text-[8px]">{formData.institution || "Instituição"}</p>
+              <div className="h-px bg-slate-200 w-full mt-2"></div>
+            </div>
+            
+            <div className="flex-1 space-y-3">
+              <section>
+                <h5 className="font-bold text-blue-700 uppercase border-b border-blue-100 mb-1">Apresentação do Caso</h5>
+                <p className="text-slate-600 line-clamp-6">{formData.history || "História clínica..."}</p>
+              </section>
+              <section>
+                <h5 className="font-bold text-blue-700 uppercase border-b border-blue-100 mb-1">Exames e Conduta</h5>
+                <p className="mt-1 text-slate-600 line-clamp-4">{formData.intervention || "Descreva a conduta..."}</p>
+              </section>
+            </div>
+            <div className="mt-auto pt-2 border-t text-[8px] flex justify-between text-slate-400">
+              <span>GERADOR OTTO CASES</span>
+              <span>Uso Acadêmico</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 mt-2">
+            <div className="flex gap-2">
+              <InputField label="Largura (px)" value={aiOutput.posterWidth} onChange={(v) => setAiOutput({...aiOutput, posterWidth: v})} />
+              <InputField label="Altura (px)" value={aiOutput.posterHeight} onChange={(v) => setAiOutput({...aiOutput, posterHeight: v})} />
+            </div>
+            <Button variant="primary" className="w-full text-sm" onClick={handleDownloadPdf}>
+              <Download size={16} /> Baixar PDF do Pôster
+            </Button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

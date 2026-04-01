@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>E-Pôster - {{ title }}</title>
+    <style>
+        /* Editable poster layout */
+        @page {
+            size: {{ width }}px {{ height }}px;
+            margin: 0;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 60px;
+            width: {{ width }}px;
+            height: {{ height }}px;
+            box-sizing: border-box;
+            background-color: white;
+            color: #1e293b;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #e2e8f0;
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+        }
+        .title {
+            font-size: 42px;
+            font-weight: bold;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        .author {
+            font-size: 28px;
+            font-weight: bold;
+            color: #334155;
+        }
+        .institution {
+            font-size: 24px;
+            font-style: italic;
+            color: #64748b;
+            margin-top: 10px;
+        }
+        .content {
+            font-size: 26px;
+            line-height: 1.5;
+            columns: 2;
+            column-gap: 60px;
+        }
+        .section-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1d4ed8;
+            border-bottom: 2px solid #bfdbfe;
+            padding-bottom: 10px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            break-after: avoid;
+        }
+        .footer {
+            position: absolute;
+            bottom: 60px;
+            left: 60px;
+            right: 60px;
+            border-top: 2px solid #e2e8f0;
+            padding-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            color: #94a3b8;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">{{ title }}</div>
+        <div class="author">{{ authorName }}</div>
+        <div class="institution">{{ institution }}</div>
+    </div>
+    
+    <div class="content">
+        {{ posterContent | safe }}
+    </div>
+
+    <div class="footer">
+        <span>CONGRESSO FORL / ABORL-CCF</span>
+        <span>GERADO POR OTTO CASES</span>
+    </div>
+</body>
+</html>
