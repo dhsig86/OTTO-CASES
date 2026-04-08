@@ -18,7 +18,7 @@ export default function CaseWizard({ onBack, caseId }) {
   const [formData, setFormData] = useState({
     authorName: "", institution: "", ethicsApproval: false, patientAge: "", patientGender: "", patientProfession: "",
     complaint: "", history: "", physicalExam: "", diagnostics: "", intervention: "", outcome: "", keywords: "",
-    isSurgical: false, clavienDindo: ""
+    isSurgical: false, clavienDindo: "", imageUrls: []
   });
 
   const [aiOutput, setAiOutput] = useState({
@@ -41,7 +41,7 @@ export default function CaseWizard({ onBack, caseId }) {
               physicalExam: data.physical_exam || "", diagnostics: data.diagnostics || "", 
               intervention: data.intervention || "", outcome: data.outcome || "", 
               keywords: data.keywords || "", isSurgical: data.is_surgical || false, 
-              clavienDindo: data.clavien_dindo || ""
+              clavienDindo: data.clavien_dindo || "", imageUrls: data.image_urls || []
             });
             if (data.status === 'generated') {
               setAiOutput({
@@ -127,6 +127,81 @@ export default function CaseWizard({ onBack, caseId }) {
     }
   };
 
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Max dimension limit to ensure size < 1MB ideally
+          const MAX_DIM = 1200;
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height *= MAX_DIM / width;
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width *= MAX_DIM / height;
+              height = MAX_DIM;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob((blob) => {
+            resolve(blob);
+          }, 'image/webp', 0.8);
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("Necessário login para upload vazio."); return;
+      }
+      
+      const compressedBlob = await compressImage(file);
+      const fileName = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}.webp`;
+      
+      const { data, error } = await supabase.storage
+        .from('clinical-images')
+        .upload(fileName, compressedBlob, {
+          contentType: 'image/webp'
+        });
+        
+      if (error) throw error;
+      
+      const { data: publicUrlData } = supabase.storage
+        .from('clinical-images')
+        .getPublicUrl(fileName);
+        
+      handleInputChange('imageUrls', [...formData.imageUrls, publicUrlData.publicUrl]);
+    } catch (err) {
+      console.error("Erro no upload", err);
+      alert("Falha ao enviar a imagem.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const autoSaveDraft = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -148,6 +223,7 @@ export default function CaseWizard({ onBack, caseId }) {
         keywords: formData.keywords,
         is_surgical: formData.isSurgical,
         clavien_dindo: formData.clavienDindo,
+        image_urls: formData.imageUrls,
         status: aiGenerated ? 'generated' : 'draft',
         updated_at: new Date()
       };
@@ -200,6 +276,7 @@ export default function CaseWizard({ onBack, caseId }) {
         ai_poster_content: aiOutput.posterContent,
         is_surgical: formData.isSurgical,
         clavien_dindo: formData.clavienDindo,
+        image_urls: formData.imageUrls,
         status: 'generated',
         updated_at: new Date()
       };
@@ -304,9 +381,23 @@ export default function CaseWizard({ onBack, caseId }) {
                 <h2 className="text-xl font-bold flex items-center gap-2"><Stethoscope className="text-blue-600" /> Investigação</h2>
                 <TextAreaField label="Exame Físico Especializado (Otoscopia, Rinoscopia, Laringoscopia)" placeholder="Descreva detalhadamente..." value={formData.physicalExam} onChange={(v) => handleInputChange('physicalExam', v)} />
                 <TextAreaField label="Exames Complementares" placeholder="Audiometria (limiares), TC, RM, Laboratório..." value={formData.diagnostics} onChange={(v) => handleInputChange('diagnostics', v)} />
-                <div className="p-4 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-300 hover:text-blue-500 cursor-pointer transition-all">
-                  <ImageIcon size={32} />
-                  <span className="text-sm font-medium">Upload de Imagens Clínicas (Requisito FORL)</span>
+                
+                <div>
+                  <h3 className="text-sm font-bold text-slate-700 mb-2">Imagens do Caso (Minimizado via PWA)</h3>
+                  {formData.imageUrls.length > 0 && (
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {formData.imageUrls.map((url, i) => (
+                        <div key={i} className="relative w-20 h-20 border rounded overflow-hidden">
+                          <img src={url} alt="Clinical image" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <label className="p-4 border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-lg flex flex-col items-center justify-center gap-2 text-blue-500 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
+                    <ImageIcon size={32} />
+                    <span className="text-sm font-medium text-center">Faça upload de fotos ou laudos.<br/> As imagens serão comprimidas automaticamente {'<'} 1MB para respeitar a FORL.</span>
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </label>
                 </div>
               </div>
             )}

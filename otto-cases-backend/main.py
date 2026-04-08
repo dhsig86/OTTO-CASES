@@ -39,6 +39,7 @@ class CaseInput(BaseModel):
     keywords: str
     isSurgical: bool = False
     clavienDindo: str = ""
+    imageUrls: list[str] = []
 
 class PosterInput(BaseModel):
     title: str

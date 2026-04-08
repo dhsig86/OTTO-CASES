@@ -22,6 +22,7 @@ create table public.cases (
   -- SCARE Variables
   is_surgical boolean default false,
   clavien_dindo text,
+  image_urls text[],
   -- AI Outputs
   ai_title text,
   ai_advisor_feedback text,
