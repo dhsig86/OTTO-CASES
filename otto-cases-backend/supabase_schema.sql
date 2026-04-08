@@ -19,6 +19,9 @@ create table public.cases (
   author_name text,
   institution text,
   status text default 'draft', -- draft, generated
+  -- SCARE Variables
+  is_surgical boolean default false,
+  clavien_dindo text,
   -- AI Outputs
   ai_title text,
   ai_advisor_feedback text,

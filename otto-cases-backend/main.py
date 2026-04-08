@@ -37,6 +37,8 @@ class CaseInput(BaseModel):
     intervention: str
     outcome: str
     keywords: str
+    isSurgical: bool = False
+    clavienDindo: str = ""
 
 class PosterInput(BaseModel):
     title: str

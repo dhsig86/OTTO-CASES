@@ -9,19 +9,59 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { InputField, TextAreaField } from '../components/ui/Input';
 
-export default function CaseWizard({ onBack }) {
+export default function CaseWizard({ onBack, caseId }) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [currentCaseId, setCurrentCaseId] = useState(caseId || null);
   
   const [formData, setFormData] = useState({
     authorName: "", institution: "", ethicsApproval: false, patientAge: "", patientGender: "", patientProfession: "",
-    complaint: "", history: "", physicalExam: "", diagnostics: "", intervention: "", outcome: "", keywords: ""
+    complaint: "", history: "", physicalExam: "", diagnostics: "", intervention: "", outcome: "", keywords: "",
+    isSurgical: false, clavienDindo: ""
   });
 
   const [aiOutput, setAiOutput] = useState({
     advisorFeedback: "", title: "", submissionSummary: "", draftArticle: "", posterContent: "", posterWidth: "1080", posterHeight: "1920"
   });
+
+  React.useEffect(() => {
+    if (caseId) {
+      const loadCase = async () => {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase.from('cases').select('*').eq('id', caseId).single();
+          if (error) throw error;
+          if (data) {
+            setFormData({
+              authorName: data.author_name || "", institution: data.institution || "", 
+              ethicsApproval: true, patientAge: data.patient_age || "", 
+              patientGender: data.patient_gender || "", patientProfession: data.patient_profession || "",
+              complaint: data.complaint || "", history: data.history || "", 
+              physicalExam: data.physical_exam || "", diagnostics: data.diagnostics || "", 
+              intervention: data.intervention || "", outcome: data.outcome || "", 
+              keywords: data.keywords || "", isSurgical: data.is_surgical || false, 
+              clavienDindo: data.clavien_dindo || ""
+            });
+            if (data.status === 'generated') {
+              setAiOutput({
+                advisorFeedback: data.ai_advisor_feedback || "", title: data.ai_title || "",
+                submissionSummary: data.ai_submission_summary || "", draftArticle: data.ai_draft_article || "",
+                posterContent: data.ai_poster_content || "", posterWidth: "1080", posterHeight: "1920"
+              });
+              setAiGenerated(true);
+              setStep(4);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load case", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadCase();
+    }
+  }, [caseId]);
 
   const steps = [
     { id: 'meta', title: 'Autoria e Ética', icon: <User size={18} /> },
@@ -87,6 +127,50 @@ export default function CaseWizard({ onBack }) {
     }
   };
 
+  const autoSaveDraft = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const payload = {
+        user_id: user.id,
+        author_name: formData.authorName,
+        institution: formData.institution,
+        patient_age: formData.patientAge,
+        patient_gender: formData.patientGender,
+        patient_profession: formData.patientProfession,
+        complaint: formData.complaint,
+        history: formData.history,
+        physical_exam: formData.physicalExam,
+        diagnostics: formData.diagnostics,
+        intervention: formData.intervention,
+        outcome: formData.outcome,
+        keywords: formData.keywords,
+        is_surgical: formData.isSurgical,
+        clavien_dindo: formData.clavienDindo,
+        status: aiGenerated ? 'generated' : 'draft',
+        updated_at: new Date()
+      };
+
+      if (currentCaseId) {
+        payload.id = currentCaseId;
+        await supabase.from('cases').upsert(payload);
+      } else {
+        const { data, error } = await supabase.from('cases').insert(payload).select().single();
+        if (!error && data) {
+          setCurrentCaseId(data.id);
+        }
+      }
+    } catch (e) {
+      console.error("Autosave failed", e);
+    }
+  };
+
+  const handleNextStep = async () => {
+    await autoSaveDraft();
+    setStep(s => Math.min(steps.length - 1, s + 1));
+  };
+
   const handleSaveToDatabase = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -95,7 +179,7 @@ export default function CaseWizard({ onBack }) {
         return;
       }
       
-      const { error } = await supabase.from('cases').insert({
+      const payload = {
         user_id: user.id,
         author_name: formData.authorName,
         institution: formData.institution,
@@ -113,10 +197,23 @@ export default function CaseWizard({ onBack }) {
         ai_title: aiOutput.title,
         ai_submission_summary: aiOutput.submissionSummary,
         ai_draft_article: aiOutput.draftArticle,
-        ai_poster_content: aiOutput.posterContent
-      });
+        ai_poster_content: aiOutput.posterContent,
+        is_surgical: formData.isSurgical,
+        clavien_dindo: formData.clavienDindo,
+        status: 'generated',
+        updated_at: new Date()
+      };
+
+      if (currentCaseId) {
+        payload.id = currentCaseId;
+        const { error } = await supabase.from('cases').upsert(payload);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from('cases').insert(payload).select().single();
+        if (error) throw error;
+        setCurrentCaseId(data.id);
+      }
       
-      if (error) throw error;
       alert("Relato gravado com sucesso no banco de dados (Supabase)!");
     } catch (error) {
       console.error("Erro ao salvar no banco:", error);
@@ -218,7 +315,18 @@ export default function CaseWizard({ onBack }) {
               <div className="space-y-6 animate-in fade-in duration-500">
                 <h2 className="text-xl font-bold flex items-center gap-2"><ClipboardList className="text-blue-600" /> Resolução</h2>
                 <TextAreaField label="Conduta e Intervenção" placeholder="Descrição cirúrgica, via de acesso ou protocolo..." value={formData.intervention} onChange={(v) => handleInputChange('intervention', v)} />
-                <TextAreaField label="Evolução e Desfecho" placeholder="Acompanhamento pós-op, Clavien-Dindo, status..." value={formData.outcome} onChange={(v) => handleInputChange('outcome', v)} />
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col gap-3 text-left">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                    <input type="checkbox" checked={formData.isSurgical} onChange={(e) => handleInputChange('isSurgical', e.target.checked)} className="rounded text-blue-600" />
+                    Este é um Caso Cirúrgico (Ativa Diretrizes SCARE)
+                  </label>
+                  {formData.isSurgical && (
+                    <div className="mt-2 animate-in fade-in duration-300">
+                      <InputField label="Classificação de Clavien-Dindo (Complicações Cirúrgicas)" placeholder="Ex: Grau I (Antiemético), Grau II, Nenhuma..." value={formData.clavienDindo} onChange={(v) => handleInputChange('clavienDindo', v)} />
+                    </div>
+                  )}
+                </div>
+                <TextAreaField label="Evolução e Desfecho" placeholder="Acompanhamento pós-op, status atual..." value={formData.outcome} onChange={(v) => handleInputChange('outcome', v)} />
                 <InputField label="Palavras-Chave (MeSH/DeCS)" placeholder="Ex: Sinusite, Endoscopia, Complicações" value={formData.keywords} onChange={(v) => handleInputChange('keywords', v)} />
               </div>
             )}
@@ -283,7 +391,10 @@ export default function CaseWizard({ onBack }) {
                   <ChevronLeft size={18} /> Anterior
                 </Button>
                 {step < 4 && (
-                  <Button onClick={() => setStep(s => Math.min(steps.length - 1, s + 1))}>
+                  <Button 
+                    onClick={handleNextStep}
+                    disabled={step === 0 && (!formData.authorName || !formData.ethicsApproval)}
+                  >
                     Próximo <ChevronRight size={18} />
                   </Button>
                 )}
