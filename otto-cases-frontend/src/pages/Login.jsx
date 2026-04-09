@@ -8,20 +8,37 @@ export default function Login({ onLoginComplete }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
-  const handleLogin = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setLoading(false);
     
-    if (error) {
-      alert("Erro de autenticação: Verifique seu e-mail e senha.");
+    if (isRegistering) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      setLoading(false);
+      
+      if (error) {
+        alert("Erro no cadastro: Verifique os dados fornecidos. A senha deve ter ao menos 6 caracteres.");
+      } else {
+        alert("Cadastro na Beta efetuado com sucesso! Se a plataforma pedir, confirme seu e-mail. Caso contrário, realize o login normalmente agora.");
+        setIsRegistering(false);
+      }
     } else {
-      onLoginComplete();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      setLoading(false);
+      
+      if (error) {
+        alert("Erro de autenticação: Verifique seu e-mail e senha. Se ainda não possui conta, crie a sua no botão de cadastro.");
+      } else {
+        onLoginComplete();
+      }
     }
   };
 
@@ -34,13 +51,13 @@ export default function Login({ onLoginComplete }) {
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">OTTO CASES</h1>
           <p className="text-slate-500 text-sm text-center mt-2">
-            Inteligência Clínica para estruturação de Relatos de Caso e E-Pôsteres
+            Acesso Beta Exclusivo para Residentes OTTO
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleAuth} className="space-y-5">
           <InputField 
-            label="E-mail Institucional" 
+            label="E-mail Institucional ou Pessoal" 
             type="email" 
             placeholder="medico@hospital.com.br" 
             value={email} 
@@ -48,7 +65,7 @@ export default function Login({ onLoginComplete }) {
             required 
           />
           <InputField 
-            label="Senha" 
+            label="Senha (mín. 6 caracteres)" 
             type="password" 
             placeholder="••••••••" 
             value={password} 
@@ -56,13 +73,22 @@ export default function Login({ onLoginComplete }) {
             required 
           />
           
-          <Button type="submit" className="w-full py-3 mt-4" disabled={loading}>
-            {loading ? "Entrando..." : "Acessar Plataforma"}
+          <Button type="submit" className={`w-full py-3 mt-4 ${isRegistering ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`} disabled={loading}>
+            {loading ? "Processando..." : (isRegistering ? "Criar Minha Conta Beta" : "Acessar Plataforma")}
           </Button>
         </form>
 
-        <p className="text-center text-xs text-slate-400 mt-8">
-          Acesso restrito a profissionais médicos e acadêmicos.
+        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center">
+          <p className="text-sm text-slate-600 mb-4 font-medium">
+            {isRegistering ? "Já possui uma conta?" : "Não possui acesso ao Beta?"}
+          </p>
+          <Button variant="outline" className="w-full" onClick={() => setIsRegistering(!isRegistering)}>
+            {isRegistering ? "Fazer Login" : "Cadastrar na Plataforma Beta"}
+          </Button>
+        </div>
+
+        <p className="text-center text-xs text-slate-400 mt-6">
+          Acesso restrito a profissionais médicos e residentes.
         </p>
       </div>
     </div>
