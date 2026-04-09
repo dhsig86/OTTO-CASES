@@ -17,6 +17,21 @@ client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="OTTO CASES API", version="1.0.0")
 
+def load_directory_text(dir_path: str) -> str:
+    content = ""
+    if os.path.exists(dir_path):
+        for filename in os.listdir(dir_path):
+            if filename.endswith(".txt") or filename.endswith(".md") or filename.endswith(".json"):
+                if filename.upper() == "README.MD":
+                    continue
+                file_path = os.path.join(dir_path, filename)
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        content += f"--- {filename} ---\n{f.read()}\n\n"
+                except Exception as e:
+                    print(f"Error reading {file_path}: {e}")
+    return content
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -56,12 +71,21 @@ def read_root():
 @app.post("/api/generate-case")
 async def generate_case(case_data: CaseInput):
     try:
+        knowledge_text = load_directory_text("knowledge")
+        few_shots_text = load_directory_text("few_shots")
+        
+        system_context = SYSTEM_PROMPT
+        if knowledge_text:
+            system_context += f"\n\n[DIRETRIZES DA LITERATURA ORL RECENTE]\nUtilize o embasamento teórico a seguir como fonte absoluta de suporte técnico:\n{knowledge_text}"
+        if few_shots_text:
+            system_context += f"\n\n[EXEMPLOS DE REDAÇÃO PADRÃO OURO PARA INSPIRAÇÃO DE ESTILO]\nMolde o estilo, formatação e escolha de palavras rigorosamente baseado nestes exemplos:\n{few_shots_text}"
+
         user_prompt = f"Dados do Caso Clínico:\n{case_data.model_dump_json(indent=2)}\n\nPor favor, retorne o JSON estruturado conforme as instruções do sistema."
         
         response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_context},
                 {"role": "user", "content": user_prompt}
             ],
             response_format={"type": "json_object"},
