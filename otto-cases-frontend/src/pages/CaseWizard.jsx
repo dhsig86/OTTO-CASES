@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Stethoscope, FileText, Image as ImageIcon, Send, CheckCircle, 
-  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save 
+  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save, Loader2 
 } from 'lucide-react';
 import axios from 'axios';
 import { supabase } from '../supabase';
@@ -24,6 +24,26 @@ export default function CaseWizard({ onBack, caseId }) {
   const [aiOutput, setAiOutput] = useState({
     advisorFeedback: "", title: "", submissionSummary: "", draftArticle: "", posterContent: "", posterWidth: "1080", posterHeight: "1920"
   });
+
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      if (formData.authorName || formData.complaint || formData.patientAge) {
+        setSaveStatus('saving');
+        autoSaveDraft()
+          .then(() => setSaveStatus('saved'))
+          .catch(() => setSaveStatus('error'));
+      }
+    }, 2000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData]);
 
   React.useEffect(() => {
     if (caseId) {
@@ -230,15 +250,18 @@ export default function CaseWizard({ onBack, caseId }) {
 
       if (currentCaseId) {
         payload.id = currentCaseId;
-        await supabase.from('cases').upsert(payload);
+        const { error } = await supabase.from('cases').upsert(payload);
+        if (error) throw error;
       } else {
         const { data, error } = await supabase.from('cases').insert(payload).select().single();
-        if (!error && data) {
+        if (error) throw error;
+        if (data) {
           setCurrentCaseId(data.id);
         }
       }
     } catch (e) {
       console.error("Autosave failed", e);
+      throw e;
     }
   };
 
@@ -310,7 +333,12 @@ export default function CaseWizard({ onBack, caseId }) {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight">Criador de Relato de Caso</h1>
-            <p className="text-slate-500 text-xs font-medium">Modelos CARE & SCARE</p>
+            <div className="flex items-center gap-2">
+              <p className="text-slate-500 text-xs font-medium">Modelos CARE & SCARE</p>
+              {saveStatus === 'saving' && <span className="text-[10px] text-amber-500 font-bold bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Salvando Rascunho</span>}
+              {saveStatus === 'saved' && <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={10} /> Rascunho Salvo</span>}
+              {saveStatus === 'error' && <span className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle size={10} /> Erro na Rede</span>}
+            </div>
           </div>
         </div>
         <div className="flex gap-3">
@@ -395,7 +423,7 @@ export default function CaseWizard({ onBack, caseId }) {
                   )}
                   <label className="p-4 border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-lg flex flex-col items-center justify-center gap-2 text-blue-500 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
                     <ImageIcon size={32} />
-                    <span className="text-sm font-medium text-center">Faça upload de fotos ou laudos.<br/> As imagens serão comprimidas automaticamente {'<'} 1MB para respeitar a FORL.</span>
+                    <span className="text-sm font-medium text-center">Faça upload de fotos ou exames.<br/> As imagens serão comprimidas automaticamente para menos de 1MB.</span>
                     <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                   </label>
                 </div>
@@ -407,10 +435,16 @@ export default function CaseWizard({ onBack, caseId }) {
                 <h2 className="text-xl font-bold flex items-center gap-2"><ClipboardList className="text-blue-600" /> Resolução</h2>
                 <TextAreaField label="Conduta e Intervenção" placeholder="Descrição cirúrgica, via de acesso ou protocolo..." value={formData.intervention} onChange={(v) => handleInputChange('intervention', v)} />
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col gap-3 text-left">
-                  <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
-                    <input type="checkbox" checked={formData.isSurgical} onChange={(e) => handleInputChange('isSurgical', e.target.checked)} className="rounded text-blue-600" />
-                    Este é um Caso Cirúrgico (Ativa Diretrizes SCARE)
-                  </label>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                      <input type="checkbox" checked={formData.isSurgical} onChange={(e) => handleInputChange('isSurgical', e.target.checked)} className="rounded text-blue-600" />
+                      Este é um Caso Cirúrgico (Ativa Diretrizes SCARE)
+                    </label>
+                    <p className="text-xs text-slate-500 ml-6 mt-1 mb-2 leading-relaxed">
+                      *O SCARE <strong>(Surgical CAse REport)</strong> é o protocolo internacional para padronizar relatos cirúrgicos.<br/> 
+                      Ative-o se houve procedimento invasivo. Ele guiará a IA a descrever a técnica, profilaxia antimicrobiana, dispositivos médicos implantáveis utilizados, via de acesso e possíveis complicações per-operatórias.*
+                    </p>
+                  </div>
                   {formData.isSurgical && (
                     <div className="mt-2 animate-in fade-in duration-300">
                       <InputField label="Classificação de Clavien-Dindo (Complicações Cirúrgicas)" placeholder="Ex: Grau I (Antiemético), Grau II, Nenhuma..." value={formData.clavienDindo} onChange={(v) => handleInputChange('clavienDindo', v)} />

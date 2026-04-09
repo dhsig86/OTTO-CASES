@@ -22,7 +22,7 @@ export default function Login({ onLoginComplete }) {
       setLoading(false);
       
       if (error) {
-        alert("Erro no cadastro: Verifique os dados fornecidos. A senha deve ter ao menos 6 caracteres.");
+        alert(`Erro no cadastro: ${error.message}`);
       } else {
         alert("Cadastro na Beta efetuado com sucesso! Se a plataforma pedir, confirme seu e-mail. Caso contrário, realize o login normalmente agora.");
         setIsRegistering(false);
@@ -35,7 +35,7 @@ export default function Login({ onLoginComplete }) {
       setLoading(false);
       
       if (error) {
-        alert("Erro de autenticação: Verifique seu e-mail e senha. Se ainda não possui conta, crie a sua no botão de cadastro.");
+        alert(`Erro de autenticação: ${error.message}`);
       } else {
         onLoginComplete();
       }

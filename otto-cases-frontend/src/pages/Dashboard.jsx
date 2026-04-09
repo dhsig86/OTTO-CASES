@@ -74,8 +74,8 @@ export default function Dashboard({ onNewCase, onOpenCase, onLogout }) {
                 <div className="bg-blue-50 text-blue-600 p-2 rounded-lg">
                   <FileText size={20} />
                 </div>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${c.status === 'Gerado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {c.status}
+                <span className={`text-xs font-bold px-2 py-1 rounded-full ${c.status === 'generated' || c.status === 'Gerado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {c.status === 'generated' || c.status === 'Gerado' ? "Relato Finalizado" : "Rascunho Clínico"}
                 </span>
               </div>
               <h3 className="font-bold text-slate-800 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
