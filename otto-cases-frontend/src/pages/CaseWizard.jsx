@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Stethoscope, FileText, Image as ImageIcon, Send, CheckCircle, 
-  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save, Loader2 
+  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save, Loader2, BookOpen, X
 } from 'lucide-react';
 import axios from 'axios';
 import { supabase } from '../supabase';
@@ -14,6 +14,7 @@ export default function CaseWizard({ onBack, caseId }) {
   const [loading, setLoading] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
   const [currentCaseId, setCurrentCaseId] = useState(caseId || null);
+  const [showReferences, setShowReferences] = useState(false);
   
   const [formData, setFormData] = useState({
     authorName: "", institution: "", ethicsApproval: false, patientAge: "", patientGender: "", patientProfession: "",
@@ -351,6 +352,9 @@ export default function CaseWizard({ onBack, caseId }) {
           <Button variant="outline" size="sm" onClick={() => window.open("https://www.aborlccf.org.br/eventos/normas", "_blank")}>
             <AlertCircle size={14} className="mr-1" /> Editais ORL
           </Button>
+          <Button variant="outline" size="sm" className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" onClick={() => setShowReferences(true)}>
+            <BookOpen size={14} className="mr-1" /> Base do RAG
+          </Button>
         </div>
       </header>
 
@@ -579,6 +583,49 @@ export default function CaseWizard({ onBack, caseId }) {
           </div>
         </div>
       </main>
+
+      {/* Modal de Referências do RAG */}
+      {showReferences && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
+                <BookOpen className="text-blue-600" size={20} /> Base de Conhecimento RAG (Otorrino)
+              </h2>
+              <button onClick={() => setShowReferences(false)} className="p-1 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <p className="text-sm text-slate-600 mb-4">
+                A Inteligência Artificial desta plataforma utiliza o framework <strong>RAG (Retrieval-Augmented Generation)</strong> e <strong>Few-Shot Prompting</strong> ancorado nas referências de padrão-ouro abaixo:
+              </p>
+              <ul className="space-y-3">
+                {[
+                  "EPOS 2020: European Position Paper on Rhinosinusitis and Nasal Polyps",
+                  "Tratado de Otorrinolaringologia e Cirurgia Cérvico-Facial da ABORL-CCF",
+                  "V Consenso Brasileiro sobre Rinites 2024",
+                  "Diretriz Brasileira para Omalizumabe em Rinossinusite Crônica com Pólipo Nasal",
+                  "100 Cases In ENT (Modelos de submissão acadêmica)",
+                  "CARE Guidelines: The CARE Statements and Checklist",
+                  "SCARE Guidelines: Surgical CAse REport",
+                  "The Laryngoscope (The Triological Society) - Persona Q1",
+                  "Brazilian Journal of Otorhinolaryngology (BJORL) - Persona Nacional",
+                  "Adaptação Transcultural da Terminologia Anatômica Nasossinusal para o Português"
+                ].map((ref, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm">
+                    <span className="font-bold text-blue-600 shrink-0 w-5">{idx + 1}.</span>
+                    <span className="text-slate-700">{ref}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="p-4 border-t bg-slate-50 text-right">
+              <Button onClick={() => setShowReferences(false)}>Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
