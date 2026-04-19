@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Stethoscope, FileText, Image as ImageIcon, Send, CheckCircle, 
-  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save, Loader2, BookOpen, X
+  ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save, Loader2, BookOpen, X, Wand2
 } from 'lucide-react';
 import axios from 'axios';
 import api from '../api/client';
@@ -13,6 +13,8 @@ export default function CaseWizard({ onBack, caseId }) {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(''); // '', 'Digitando...', 'Salvando...', 'Salvo', 'Erro'
+  const [isDataLoaded, setIsDataLoaded] = useState(caseId ? false : true);
   const [currentCaseId, setCurrentCaseId] = useState(caseId || null);
   const [showReferences, setShowReferences] = useState(false);
   
@@ -26,25 +28,31 @@ export default function CaseWizard({ onBack, caseId }) {
     advisorFeedback: "", title: "", submissionSummary: "", draftArticle: "", posterContent: "", posterWidth: "1080", posterHeight: "1920"
   });
 
-  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
-  const isFirstRender = useRef(true);
+  // H.3 - AUTOSAVE COM DEBOUNCE E LOCALSTORAGE
+  React.useEffect(() => {
+    if (!isDataLoaded) return; // Não salvar por cima enquanto o GET ainda roda
 
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    const timeoutId = setTimeout(() => {
-      if (formData.authorName || formData.complaint || formData.patientAge) {
-        setSaveStatus('saving');
-        autoSaveDraft()
-          .then(() => setSaveStatus('saved'))
-          .catch(() => setSaveStatus('error'));
-      }
-    }, 2000);
+    const draftKey = currentCaseId ? `otto-cases:draft:${currentCaseId}` : `otto-cases:draft:new`;
     
-    return () => clearTimeout(timeoutId);
-  }, [formData]);
+    // 1. Snapshot local imediato e offline-safe (proteção contra rede caindo)
+    const snapshot = { formData, aiOutput, updatedAt: new Date().toISOString() };
+    localStorage.setItem(draftKey, JSON.stringify(snapshot));
+
+    // 2. Debounce para o Firebase via API (espera médico parar de digitar por 3 segundos)
+    setSaveStatus('Digitando...');
+    
+    const handler = setTimeout(async () => {
+      setSaveStatus('Salvando...');
+      try {
+        await autoSaveDraft();
+        setSaveStatus(`Salvo local & nuvem`);
+      } catch (err) {
+        setSaveStatus('Salvo local (Aguardando Rede)');
+      }
+    }, 3000);
+
+    return () => clearTimeout(handler);
+  }, [formData, aiOutput, isDataLoaded]);
 
   React.useEffect(() => {
     if (caseId) {
@@ -77,6 +85,7 @@ export default function CaseWizard({ onBack, caseId }) {
               setAiGenerated(true);
               setStep(4);
             }
+            setIsDataLoaded(true); // Dados carregados com sucesso
           }
         } catch (err) {
           console.error("Failed to load case", err);
@@ -100,6 +109,10 @@ export default function CaseWizard({ onBack, caseId }) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleAiChange = (field, value) => {
+    setAiOutput(prev => ({ ...prev, [field]: value }));
+  };
+
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const generateAiReport = async () => {
@@ -121,6 +134,49 @@ export default function CaseWizard({ onBack, caseId }) {
     } catch (error) {
       console.error("Erro ao gerar caso", error);
       alert("Houve um erro de comunicação com o servidor de IA. Verifique se o backend está rodando e a API Key configurada.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefine = async (sectionKey, oldText) => {
+    const instruction = prompt(
+      "O que você deseja mudar nesta seção?\n\nEx: 'Use mais jargão médico', 'Reduza pela metade', 'Adicione o aspecto de oclusão'", 
+      "Melhore a fluidez clínica e use vocabulário mais robusto."
+    );
+    if (!instruction) return;
+    
+    setSaveStatus('Refinando via IA...');
+    try {
+      const { data } = await api.post(`/api/cases/${currentCaseId}/refine`, {
+        section: sectionKey,
+        oldText: oldText,
+        instruction: instruction
+      });
+      setAiOutput(prev => ({ ...prev, [sectionKey]: data.newText }));
+      setSaveStatus('Refinamento concluído!');
+    } catch (err) {
+      alert('Erro ao refinar o texto.');
+      setSaveStatus('Erro no Refinamento');
+    }
+  };
+
+  const handleDownloadDocx = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/api/cases/${currentCaseId}/export/docx`, {
+        responseType: 'blob' // Importante para arquivos binários!
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Relato_Clinico_OTTO.docx');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao exportar arquivo do Microsoft Word. Verifique a API.');
     } finally {
       setLoading(false);
     }
@@ -341,9 +397,12 @@ export default function CaseWizard({ onBack, caseId }) {
             <h1 className="text-xl font-bold tracking-tight">Criador de Relato de Caso</h1>
             <div className="flex items-center gap-2">
               <p className="text-slate-500 text-xs font-medium">Modelos CARE & SCARE</p>
-              {saveStatus === 'saving' && <span className="text-[10px] text-amber-500 font-bold bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Salvando Rascunho</span>}
-              {saveStatus === 'saved' && <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={10} /> Rascunho Salvo</span>}
-              {saveStatus === 'error' && <span className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle size={10} /> Erro na Rede</span>}
+              {saveStatus && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${saveStatus.includes('Erro') || saveStatus.includes('Aguardando') ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'}`}>
+                  {saveStatus.includes('Salvando') ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={10} />}
+                  {saveStatus}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -486,8 +545,8 @@ export default function CaseWizard({ onBack, caseId }) {
                       </h2>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => setAiGenerated(false)}>Refazer Inputs</Button>
-                        <Button variant="primary" size="sm" onClick={handleSaveToDatabase}><Save size={16} /> Salvar no BD</Button>
-                        <Button variant="success" size="sm" onClick={handleDownloadPdf}><Download size={16} /> PDF Pôster</Button>
+                        <Button variant="outline" size="sm" onClick={handleDownloadDocx} className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-1"><Download size={16} /> Exportar Word (.docx)</Button>
+                        <Button variant="success" size="sm" onClick={handleDownloadPdf} className="flex items-center gap-1"><Download size={16} /> PDF Pôster</Button>
                       </div>
                     </div>
                     
@@ -499,17 +558,26 @@ export default function CaseWizard({ onBack, caseId }) {
                     </div>
 
                     <div className="space-y-4">
-                      <div>
+                      <div className="relative group">
+                        <div className="absolute top-0 right-0 pt-1 pr-1 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleRefine('title', aiOutput.title)} className="text-blue-600 bg-blue-50 py-1 px-2 rounded-md hover:bg-blue-100 flex items-center gap-1 text-xs border border-blue-100 cursor-pointer"><Wand2 size={12}/> Refinar IA</button>
+                        </div>
                         <label className="text-xs font-bold text-slate-400 uppercase">1. Título Padrão</label>
                         <input className="w-full p-2 border border-slate-300 rounded font-bold" value={aiOutput.title} onChange={(e) => setAiOutput({...aiOutput, title: e.target.value})} />
                       </div>
                       
-                      <div>
+                      <div className="relative group">
+                        <div className="absolute top-0 right-0 pt-1 pr-1 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleRefine('submissionSummary', aiOutput.submissionSummary)} className="text-blue-600 bg-blue-50 py-1 px-2 rounded-md hover:bg-blue-100 flex items-center gap-1 text-xs border border-blue-100 cursor-pointer"><Wand2 size={12}/> Refinar IA</button>
+                        </div>
                         <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Languages size={14} /> 2. Submission Summary (Resumo de Inscrição)</label>
                         <textarea className="w-full p-3 border border-slate-300 rounded text-sm font-serif h-32" value={aiOutput.submissionSummary} onChange={(e) => setAiOutput({...aiOutput, submissionSummary: e.target.value})} />
                       </div>
 
-                      <div>
+                      <div className="relative group">
+                        <div className="absolute top-0 right-0 pt-1 pr-1 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleRefine('draftArticle', aiOutput.draftArticle)} className="text-blue-600 bg-blue-50 py-1 px-2 rounded-md hover:bg-blue-100 flex items-center gap-1 text-xs border border-blue-100 cursor-pointer"><Wand2 size={12}/> Refinar IA</button>
+                        </div>
                         <label className="text-xs font-bold text-slate-400 uppercase">3. Artigo Completo (CARE / SCARE)</label>
                         <textarea className="w-full p-3 border border-slate-300 rounded text-sm h-64" value={aiOutput.draftArticle} onChange={(e) => setAiOutput({...aiOutput, draftArticle: e.target.value})} />
                       </div>

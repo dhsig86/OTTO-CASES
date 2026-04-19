@@ -1,11 +1,22 @@
-import os
-from datetime import datetime, timedelta, timezone
-from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from google.cloud.firestore import SERVER_TIMESTAMP
 from auth_deps import get_current_user
 from firebase_init import db, bucket
+from pydantic import BaseModel
+from fastapi.responses import FileResponse
+import os
+import json
+import uuid
+import tempfile
+import pypandoc
+from openai import AsyncOpenAI
+from auth_deps import get_current_user
+from firebase_init import db, bucket
+from pydantic import BaseModel
+import os
+import json
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 router = APIRouter(prefix="/api", tags=["cases"])
 
@@ -27,6 +38,11 @@ class ImageAddSchema(BaseModel):
 
 class ImageRemoveSchema(BaseModel):
     storagePath: str
+
+class RefineSchema(BaseModel):
+    section: str
+    oldText: str
+    instruction: str
 
 # ---- ROTAS CRUDS DE CASOS ----
 
@@ -121,6 +137,100 @@ def delete_case(case_id: str, user = Depends(get_current_user)):
     # Soft Delete
     doc_ref.update({"status": "deleted", "updatedAt": SERVER_TIMESTAMP})
     return {"status": "deleted"}
+
+@router.post("/cases/{case_id}/refine")
+async def refine_case_section(case_id: str, payload: RefineSchema, user = Depends(get_current_user)):
+    uid = user.get("uid")
+    doc_ref = db.collection("cases").document(case_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists or doc.to_dict().get("uid") != uid:
+        raise HTTPException(status_code=404, detail="Caso não encontrado")
+    
+    # Prompt do HITL
+    system_prompt = "Você é um revisor médico sênior da área de Otorrinolaringologia. Aja conforme o estilo da revista Laryngoscope e de acordo com as instruções diretas do médico assistente."
+    user_prompt = f"""
+Sessão atual que será reescrita: `{payload.section}`
+
+--- TEXTO ATUAL ---
+{payload.oldText}
+-------------------
+
+INSTRUÇÃO DIRETIVA DO MÉDICO:
+"{payload.instruction}"
+
+Aja estritamente corrigindo ou reconstruindo o texto com base na diretriz do médico. Não adicione saudações, notas iniciais ou qualquer formatação além do conteúdo puramente revisado. Retorne em formato JSON: {{"newText": "texto aqui"}}
+"""
+    
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.5
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        
+        # Opcional: Audit log dentro de subcollection
+        doc_ref.collection("refinements").add({
+            "section": payload.section,
+            "oldText": payload.oldText,
+            "newText": result.get("newText", ""),
+            "instruction": payload.instruction,
+            "timestamp": SERVER_TIMESTAMP
+        })
+        
+        return {"newText": result.get("newText", "")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no OpenAI: {e}")
+
+@router.get("/cases/{case_id}/export/docx")
+def export_docx(case_id: str, user = Depends(get_current_user)):
+    uid = user.get("uid")
+    doc_ref = db.collection("cases").document(case_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists or doc.to_dict().get("uid") != uid:
+        raise HTTPException(status_code=404, detail="Caso não encontrado")
+    data = doc.to_dict()
+    
+    # 1. Montar Markdown Científico
+    md_content = f"# {data.get('ai', {}).get('title', 'Case Report')}\n\n"
+    md_content += f"**Authors:** {data.get('authorName', '')}\n\n"
+    md_content += f"**Institution:** {data.get('institution', '')}\n\n"
+    md_content += "## Abstract\n\n"
+    md_content += f"{data.get('ai', {}).get('submissionSummary', '')}\n\n"
+    md_content += "## Case Report\n\n"
+    md_content += f"{data.get('ai', {}).get('draftArticle', '')}\n\n"
+    
+    # Adicionar imagens ao MD se houver
+    images = data.get('images', [])
+    if images:
+        md_content += "## Clinical Images\n\n"
+        for idx, img in enumerate(images):
+            # Formatação em Markdown para imagens
+            md_content += f"![Figure {idx+1}: {img.get('caption', '')}]({img.get('publicUrl', '')})\n\n"
+
+    # 2. Converter pra DOCX via tempfile
+    temp_uuid = uuid.uuid4().hex
+    out_file = os.path.join(tempfile.gettempdir(), f"{temp_uuid}.docx")
+    
+    try:
+        # Pypandoc assume que pandoc está instalado no sistema (.exe no Win, bin no Unix)
+        pypandoc.convert_text(md_content, 'docx', format='md', outputfile=out_file)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao compilar documento DOCX na infraestrutura. O Pandoc está instalado? Log: {e}")
+
+    # Retorna o arquivo com os cabeçalhos apropriados
+    return FileResponse(
+        out_file, 
+        media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+        filename="Relato_Clinico_OTTO.docx"
+    )
 
 # ---- UPLOADS E IMAGENS ----
 
