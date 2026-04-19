@@ -85,11 +85,12 @@ export default function CaseWizard({ onBack, caseId }) {
               setAiGenerated(true);
               setStep(4);
             }
-            setIsDataLoaded(true); // Dados carregados com sucesso
           }
         } catch (err) {
           console.error("Failed to load case", err);
+          alert("Não foi possível carregar o caso selecionado. Verifique sua conexão ou se você tem permissão.");
         } finally {
+          setIsDataLoaded(true); // Garante que a flag seja liberada mesmo em erro
           setLoading(false);
         }
       };
@@ -348,7 +349,12 @@ export default function CaseWizard({ onBack, caseId }) {
   };
 
   const handleNextStep = async () => {
-    await autoSaveDraft();
+    try {
+      await autoSaveDraft();
+    } catch (err) {
+      console.warn("Falha no autosave online ao avançar de etapa. O rascunho continua salvo localmente.", err);
+      alert("Aviso: Falha ao salvar remotamente. O caso está salvo no seu dispositivo e você pode continuar.");
+    }
     setStep(s => Math.min(steps.length - 1, s + 1));
   };
 
