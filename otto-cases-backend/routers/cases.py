@@ -12,6 +12,9 @@ from openai import AsyncOpenAI
 from auth_deps import get_current_user
 from firebase_init import db, bucket
 from pydantic import BaseModel
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 import os
 import json
 from openai import AsyncOpenAI
@@ -188,17 +191,7 @@ Aja estritamente corrigindo ou reconstruindo o texto com base na diretriz do mé
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no OpenAI: {e}")
 
-@router.get("/cases/{case_id}/export/docx")
-def export_docx(case_id: str, user = Depends(get_current_user)):
-    uid = user.get("uid")
-    doc_ref = db.collection("cases").document(case_id)
-    doc = doc_ref.get()
-    
-    if not doc.exists or doc.to_dict().get("uid") != uid:
-        raise HTTPException(status_code=404, detail="Caso não encontrado")
-    data = doc.to_dict()
-    
-    # 1. Montar Markdown Científico
+def _compile_docx(data: dict) -> str:
     md_content = f"# {data.get('ai', {}).get('title', 'Case Report')}\n\n"
     md_content += f"**Authors:** {data.get('authorName', '')}\n\n"
     md_content += f"**Institution:** {data.get('institution', '')}\n\n"
@@ -207,30 +200,111 @@ def export_docx(case_id: str, user = Depends(get_current_user)):
     md_content += "## Case Report\n\n"
     md_content += f"{data.get('ai', {}).get('draftArticle', '')}\n\n"
     
-    # Adicionar imagens ao MD se houver
     images = data.get('images', [])
     if images:
         md_content += "## Clinical Images\n\n"
         for idx, img in enumerate(images):
-            # Formatação em Markdown para imagens
             md_content += f"![Figure {idx+1}: {img.get('caption', '')}]({img.get('publicUrl', '')})\n\n"
 
-    # 2. Converter pra DOCX via tempfile
     temp_uuid = uuid.uuid4().hex
     out_file = os.path.join(tempfile.gettempdir(), f"{temp_uuid}.docx")
     
     try:
-        # Pypandoc assume que pandoc está instalado no sistema (.exe no Win, bin no Unix)
         pypandoc.convert_text(md_content, 'docx', format='md', outputfile=out_file)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao compilar documento DOCX na infraestrutura. O Pandoc está instalado? Log: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao compilar documento DOCX. O Pandoc está instalado? Log: {e}")
+        
+    return out_file
 
-    # Retorna o arquivo com os cabeçalhos apropriados
+@router.get("/cases/{case_id}/export/docx")
+def export_docx(case_id: str, user = Depends(get_current_user)):
+    uid = user.get("uid")
+    doc_ref = db.collection("cases").document(case_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists or doc.to_dict().get("uid") != uid:
+        raise HTTPException(status_code=404, detail="Caso não encontrado")
+    
+    out_file = _compile_docx(doc.to_dict())
+
     return FileResponse(
         out_file, 
         media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
         filename="Relato_Clinico_OTTO.docx"
     )
+
+@router.post("/cases/{case_id}/export/gdocs")
+def export_gdocs(case_id: str, user = Depends(get_current_user)):
+    uid = user.get("uid")
+    user_email = user.get("email")
+    if not user_email:
+        raise HTTPException(status_code=400, detail="E-mail do usuário não encontrado no token. Impossível compartilhar no Drive.")
+
+    doc_ref = db.collection("cases").document(case_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists or doc.to_dict().get("uid") != uid:
+        raise HTTPException(status_code=404, detail="Caso não encontrado")
+    
+    data = doc.to_dict()
+    out_file_docx_path = _compile_docx(data)
+
+    try:
+        # Autenticação Google Drive API usando o Service Account do Firebase
+        creds_json_str = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+        if creds_json_str:
+            creds_dict = json.loads(creds_json_str)
+        else:
+            with open(os.environ.get("FIREBASE_CREDENTIALS_PATH", "firebase_key.json"), "r") as f:
+                creds_dict = json.loads(f.read())
+
+        credentials = service_account.Credentials.from_service_account_info(
+            creds_dict,
+            scopes=['https://www.googleapis.com/auth/drive']
+        )
+
+        drive_service = build('drive', 'v3', credentials=credentials)
+
+        # Configurar upload sendo convertido direto para nativo do GDocs!
+        file_metadata = {
+            'name': f"OTTO CASES | {data.get('authorName', 'Relato Científico')}",
+            'mimeType': 'application/vnd.google-apps.document'
+        }
+        
+        # Envia o DocX como mídia
+        media = MediaFileUpload(
+            out_file_docx_path, 
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            resumable=True
+        )
+
+        created_file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink'
+        ).execute()
+
+        file_id = created_file.get('id')
+
+        # Compartilhar o recém criado com o Médico usando a pessoa do 'OTTO'
+        user_permission = {
+            'type': 'user',
+            'role': 'writer',
+            'emailAddress': user_email
+        }
+        
+        drive_service.permissions().create(
+            fileId=file_id,
+            body=user_permission,
+            fields='id',
+            sendNotificationEmail=True,
+            emailMessage="Olá! OTTO processou o seu Relato de Caso científico e salvou silenciosamente no seu Google Drive. Você já pode editá-lo ou compartilhá-lo com seu Orientador!"
+        ).execute()
+
+        return {"url": created_file.get('webViewLink')}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno ao salvar no Google Drive: {e}")
 
 # ---- UPLOADS E IMAGENS ----
 

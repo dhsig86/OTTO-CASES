@@ -182,6 +182,20 @@ export default function CaseWizard({ onBack, caseId }) {
     }
   };
 
+  const handleExportGoogleDocs = async () => {
+    try {
+      setSaveStatus('Salvando no Google Drive...');
+      const response = await api.post(`/api/cases/${currentCaseId}/export/gdocs`);
+      window.open(response.data.url, '_blank');
+      setSaveStatus('Salvo!');
+      alert('Seu Relato Científico foi salvo no seu Google Drive (em formato nativo Google Docs). O OTTO acaba de te enviar um e-mail de compartilhamento!');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao exportar para o Google Drive. Verifique se as credenciais do backend têm as permissões corretas (API do Drive habilitada no Google Console).');
+      setSaveStatus('Erro no Drive');
+    }
+  };
+
   const handleDownloadPdf = async () => {
     try {
       const response = await axios.post(`${API_URL}/api/generate-poster-pdf`, {
@@ -543,9 +557,10 @@ export default function CaseWizard({ onBack, caseId }) {
                       <h2 className="text-xl font-bold text-emerald-600 flex items-center gap-2">
                         <CheckCircle /> Validação Human-in-the-Loop
                       </h2>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap pb-4">
                         <Button variant="outline" size="sm" onClick={() => setAiGenerated(false)}>Refazer Inputs</Button>
                         <Button variant="outline" size="sm" onClick={handleDownloadDocx} className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-1"><Download size={16} /> Exportar Word (.docx)</Button>
+                        <Button variant="outline" size="sm" onClick={handleExportGoogleDocs} className="border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 flex items-center gap-1 border-dashed"><BookOpen size={16} /> Google Docs</Button>
                         <Button variant="success" size="sm" onClick={handleDownloadPdf} className="flex items-center gap-1"><Download size={16} /> PDF Pôster</Button>
                       </div>
                     </div>

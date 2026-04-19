@@ -6,4 +6,16 @@
   body {
     @apply antialiased text-slate-800 bg-slate-50;
   }
+  
+  /* Garante seleção livre de texto para sobrepor bloqueios de iframe/PWA */
+  * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+  
+  /* Mantém botões sem seleção seleta para UX nativa (opcional) */
+  button, a {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
 }

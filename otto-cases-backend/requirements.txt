@@ -12,3 +12,5 @@ google-cloud-storage
 python-multipart
 
 pypandoc
+
+google-api-python-client
