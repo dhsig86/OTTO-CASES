@@ -1,6 +1,7 @@
 import os
 import json
 import io
+import firebase_init # Initializes Firebase
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,10 +35,16 @@ def load_directory_text(dir_path: str) -> str:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://pwa.otto.med.br",
+        "https://cases.otto.med.br",
+        "https://ottomed.com.br",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    allow_headers=["Authorization","Content-Type"],
 )
 
 class CaseInput(BaseModel):
@@ -64,9 +71,19 @@ class PosterInput(BaseModel):
     width: str = "1080"
     height: str = "1920"
 
+from auth_deps import get_current_user
+from fastapi import Depends
+from routers import cases
+
+app.include_router(cases.router)
+
 @app.get("/")
 def read_root():
     return {"status": "OTTO CASES Backend is running"}
+
+@app.get("/api/me")
+def read_me(user=Depends(get_current_user)):
+    return user
 
 @app.post("/api/generate-case")
 async def generate_case(case_data: CaseInput):

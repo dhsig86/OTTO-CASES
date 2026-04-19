@@ -4,7 +4,7 @@ import {
   ChevronRight, ChevronLeft, User, Activity, ClipboardList, AlertCircle, Download, Languages, Eye, Save, Loader2, BookOpen, X
 } from 'lucide-react';
 import axios from 'axios';
-import { supabase } from '../supabase';
+import api from '../api/client';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { InputField, TextAreaField } from '../components/ui/Input';
@@ -51,24 +51,28 @@ export default function CaseWizard({ onBack, caseId }) {
       const loadCase = async () => {
         setLoading(true);
         try {
-          const { data, error } = await supabase.from('cases').select('*').eq('id', caseId).single();
-          if (error) throw error;
+          const response = await api.get(`/api/cases/${caseId}`);
+          const data = response.data;
           if (data) {
+            const pt = data.patient || {};
+            const cl = data.clinical || {};
+            const aiData = data.ai || {};
+            
             setFormData({
-              authorName: data.author_name || "", institution: data.institution || "", 
-              ethicsApproval: true, patientAge: data.patient_age || "", 
-              patientGender: data.patient_gender || "", patientProfession: data.patient_profession || "",
-              complaint: data.complaint || "", history: data.history || "", 
-              physicalExam: data.physical_exam || "", diagnostics: data.diagnostics || "", 
-              intervention: data.intervention || "", outcome: data.outcome || "", 
-              keywords: data.keywords || "", isSurgical: data.is_surgical || false, 
-              clavienDindo: data.clavien_dindo || "", imageUrls: data.image_urls || []
+              authorName: data.authorName || "", institution: data.institution || "", 
+              ethicsApproval: true, patientAge: pt.age || "", 
+              patientGender: pt.gender || "", patientProfession: pt.profession || "",
+              complaint: cl.complaint || "", history: cl.history || "", 
+              physicalExam: cl.physicalExam || "", diagnostics: cl.diagnostics || "", 
+              intervention: cl.intervention || "", outcome: cl.outcome || "", 
+              keywords: cl.keywords || "", isSurgical: cl.isSurgical || false, 
+              clavienDindo: cl.clavienDindo || "", imageUrls: data.images ? data.images.map(img => img.publicUrl) : []
             });
-            if (data.status === 'generated') {
+            if (data.status === 'generated' || data.status === 'finalized') {
               setAiOutput({
-                advisorFeedback: data.ai_advisor_feedback || "", title: data.ai_title || "",
-                submissionSummary: data.ai_submission_summary || "", draftArticle: data.ai_draft_article || "",
-                posterContent: data.ai_poster_content || "", posterWidth: "1080", posterHeight: "1920"
+                advisorFeedback: aiData.advisorFeedback || "", title: aiData.title || "",
+                submissionSummary: aiData.submissionSummary || aiData.abstract || "", draftArticle: aiData.draftArticle || "",
+                posterContent: aiData.posterContent || "", posterWidth: "1080", posterHeight: "1920"
               });
               setAiGenerated(true);
               setStep(4);
@@ -194,27 +198,37 @@ export default function CaseWizard({ onBack, caseId }) {
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("Necessário login para upload vazio."); return;
+      
+      // AutoSave obrigatório antes do upload de imagem, para termos o ID do Caso
+      let targetCaseId = currentCaseId;
+      if (!targetCaseId) {
+          const id = await autoSaveDraft();
+          if (!id) throw new Error("Não foi possível criar o caso antes do upload");
+          targetCaseId = id;
       }
-      
+
       const compressedBlob = await compressImage(file);
-      const fileName = `${user.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}.webp`;
       
-      const { data, error } = await supabase.storage
-        .from('clinical-images')
-        .upload(fileName, compressedBlob, {
+      // 1. Pega URL assinada via Backend
+      const signRes = await api.post('/api/uploads/sign', {
+          filename: file.name,
           contentType: 'image/webp'
-        });
+      });
+      const { uploadUrl, storagePath, publicUrl } = signRes.data;
+
+      // 2. Envia binário direto pro Google Cloud Storage sem token de API (acesso nativo com permissão assinada)
+      await fetch(uploadUrl, {
+          method: 'PUT',
+          body: compressedBlob,
+          headers: { 'Content-Type': 'image/webp' }
+      });
+
+      // 3. Cadastra metadata da imagem no Caso
+      await api.post(`/api/cases/${targetCaseId}/images`, {
+          storagePath, publicUrl, caption: 'Upload Clínico'
+      });
         
-      if (error) throw error;
-      
-      const { data: publicUrlData } = supabase.storage
-        .from('clinical-images')
-        .getPublicUrl(fileName);
-        
-      handleInputChange('imageUrls', [...formData.imageUrls, publicUrlData.publicUrl]);
+      handleInputChange('imageUrls', [...formData.imageUrls, publicUrl]);
     } catch (err) {
       console.error("Erro no upload", err);
       alert("Falha ao enviar a imagem.");
@@ -225,39 +239,36 @@ export default function CaseWizard({ onBack, caseId }) {
 
   const autoSaveDraft = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
       const payload = {
-        user_id: user.id,
-        author_name: formData.authorName,
+        authorName: formData.authorName,
         institution: formData.institution,
-        patient_age: formData.patientAge,
-        patient_gender: formData.patientGender,
-        patient_profession: formData.patientProfession,
-        complaint: formData.complaint,
-        history: formData.history,
-        physical_exam: formData.physicalExam,
-        diagnostics: formData.diagnostics,
-        intervention: formData.intervention,
-        outcome: formData.outcome,
-        keywords: formData.keywords,
-        is_surgical: formData.isSurgical,
-        clavien_dindo: formData.clavienDindo,
-        image_urls: formData.imageUrls,
+        patient: {
+          age: formData.patientAge,
+          gender: formData.patientGender,
+          profession: formData.patientProfession
+        },
+        clinical: {
+          complaint: formData.complaint,
+          history: formData.history,
+          physicalExam: formData.physicalExam,
+          diagnostics: formData.diagnostics,
+          intervention: formData.intervention,
+          outcome: formData.outcome,
+          keywords: formData.keywords,
+          isSurgical: formData.isSurgical,
+          clavienDindo: formData.clavienDindo
+        },
         status: aiGenerated ? 'generated' : 'draft',
-        updated_at: new Date()
       };
 
       if (currentCaseId) {
-        payload.id = currentCaseId;
-        const { error } = await supabase.from('cases').upsert(payload);
-        if (error) throw error;
+        await api.patch(`/api/cases/${currentCaseId}`, payload);
+        return currentCaseId;
       } else {
-        const { data, error } = await supabase.from('cases').insert(payload).select().single();
-        if (error) throw error;
-        if (data) {
+        const { data } = await api.post('/api/cases', payload);
+        if (data.id) {
           setCurrentCaseId(data.id);
+          return data.id;
         }
       }
     } catch (e) {
@@ -273,52 +284,46 @@ export default function CaseWizard({ onBack, caseId }) {
 
   const handleSaveToDatabase = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("Sessão expirada. Faça login novamente.");
-        return;
-      }
-      
       const payload = {
-        user_id: user.id,
-        author_name: formData.authorName,
+        authorName: formData.authorName,
         institution: formData.institution,
-        patient_age: formData.patientAge,
-        patient_gender: formData.patientGender,
-        patient_profession: formData.patientProfession,
-        complaint: formData.complaint,
-        history: formData.history,
-        physical_exam: formData.physicalExam,
-        diagnostics: formData.diagnostics,
-        intervention: formData.intervention,
-        outcome: formData.outcome,
-        keywords: formData.keywords,
-        ai_advisor_feedback: aiOutput.advisorFeedback,
-        ai_title: aiOutput.title,
-        ai_submission_summary: aiOutput.submissionSummary,
-        ai_draft_article: aiOutput.draftArticle,
-        ai_poster_content: aiOutput.posterContent,
-        is_surgical: formData.isSurgical,
-        clavien_dindo: formData.clavienDindo,
-        image_urls: formData.imageUrls,
         status: 'generated',
-        updated_at: new Date()
+        patient: {
+          age: formData.patientAge,
+          gender: formData.patientGender,
+          profession: formData.patientProfession
+        },
+        clinical: {
+          complaint: formData.complaint,
+          history: formData.history,
+          physicalExam: formData.physicalExam,
+          diagnostics: formData.diagnostics,
+          intervention: formData.intervention,
+          outcome: formData.outcome,
+          keywords: formData.keywords,
+          isSurgical: formData.isSurgical,
+          clavienDindo: formData.clavienDindo
+        },
+        ai: {
+          advisorFeedback: aiOutput.advisorFeedback,
+          title: aiOutput.title,
+          submissionSummary: aiOutput.submissionSummary,
+          draftArticle: aiOutput.draftArticle,
+          posterContent: aiOutput.posterContent
+        }
       };
 
       if (currentCaseId) {
-        payload.id = currentCaseId;
-        const { error } = await supabase.from('cases').upsert(payload);
-        if (error) throw error;
+        await api.patch(`/api/cases/${currentCaseId}`, payload);
       } else {
-        const { data, error } = await supabase.from('cases').insert(payload).select().single();
-        if (error) throw error;
+        const { data } = await api.post('/api/cases', payload);
         setCurrentCaseId(data.id);
       }
       
-      alert("Relato gravado com sucesso no banco de dados (Supabase)!");
+      alert("Relato gravado com sucesso no Banco de Dados!");
     } catch (error) {
       console.error("Erro ao salvar no banco:", error);
-      alert("Erro ao gravar dados no Supabase. O banco foi configurado corretamente?");
+      alert("Erro ao gravar dados.");
     }
   };
 

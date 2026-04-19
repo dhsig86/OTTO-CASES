@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Stethoscope, Plus, FileText, ChevronRight, Loader2 } from 'lucide-react';
-import { supabase } from '../supabase';
+import api from '../api/client';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 
@@ -11,17 +11,8 @@ export default function Dashboard({ onNewCase, onOpenCase, onLogout }) {
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data, error } = await supabase
-          .from('cases')
-          .select('id, ai_title, updated_at, status, complaint')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false });
-        
-        if (error) throw error;
-        setSavedCases(data || []);
+        const response = await api.get('/api/cases');
+        setSavedCases(response.data || []);
       } catch (err) {
         console.error("Erro ao carregar casos:", err);
       } finally {
@@ -79,10 +70,10 @@ export default function Dashboard({ onNewCase, onOpenCase, onLogout }) {
                 </span>
               </div>
               <h3 className="font-bold text-slate-800 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
-                {c.ai_title || (c.complaint ? `Caso: ${c.complaint}` : "Relato de Caso em Branco")}
+                {c.aiTitle || (c.complaint ? `Caso: ${c.complaint}` : "Relato de Caso em Branco")}
               </h3>
               <div className="flex items-center justify-between text-sm text-slate-500 border-t pt-3 mt-4">
-                <span>{new Date(c.updated_at).toLocaleDateString()}</span>
+                <span>{c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '—'}</span>
                 <ChevronRight size={16} />
               </div>
             </Card>

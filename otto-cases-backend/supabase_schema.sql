@@ -9,6 +9,7 @@ create table public.cases (
   user_id uuid references auth.users not null,
   patient_age text,
   patient_gender text,
+  patient_profession text,
   complaint text,
   history text,
   physical_exam text,
