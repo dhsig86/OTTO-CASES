@@ -2,6 +2,7 @@ from google.cloud.firestore import SERVER_TIMESTAMP
 from auth_deps import get_current_user
 from firebase_init import db, bucket
 from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 import os
 import json
@@ -9,15 +10,10 @@ import uuid
 import tempfile
 import pypandoc
 from openai import AsyncOpenAI
-from auth_deps import get_current_user
-from firebase_init import db, bucket
-from pydantic import BaseModel
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-import os
-import json
-from openai import AsyncOpenAI
+from datetime import timedelta, datetime, timezone
 
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -319,7 +315,7 @@ def sign_upload_url(payload: UploadSignSchema, user = Depends(get_current_user))
     if payload.contentType not in allowed_types:
         raise HTTPException(status_code=400, detail="Content type não permitido")
     
-    storage_path = f"cases/{uid}/{uuid4().hex}.webp"
+    storage_path = f"cases/{uid}/{uuid.uuid4().hex}.webp"
     blob = bucket.blob(storage_path)
     
     upload_url = blob.generate_signed_url(
