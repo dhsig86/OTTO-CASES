@@ -48,20 +48,40 @@ class RefineSchema(BaseModel):
 @router.get("/cases")
 def list_cases(user = Depends(get_current_user)):
     uid = user.get("uid")
-    # Firebase Firestore Query
-    docs = db.collection("cases").where("uid", "==", uid).order_by("updatedAt", direction="DESCENDING").stream()
-    
-    cases = []
-    for doc in docs:
-        data = doc.to_dict()
-        # Projeta apenas o básico para economia de load no dashboard
-        cases.append({
-            "id": doc.id,
-            "aiTitle": data.get("ai", {}).get("title") or data.get("aiTitle", ""),
-            "complaint": data.get("clinical", {}).get("complaint") or data.get("complaint", ""),
-            "status": data.get("status", "draft"),
-            "updatedAt": data.get("updatedAt")
-        })
+    # A query com where + order_by requer índice composto no Firestore.
+    # Fallback sem ordering caso o índice ainda não esteja ativo.
+    try:
+        docs = db.collection("cases") \
+                 .where("uid", "==", uid) \
+                 .order_by("updatedAt", direction="DESCENDING") \
+                 .stream()
+        cases = []
+        for doc in docs:
+            data = doc.to_dict()
+            if data.get("status") == "deleted":
+                continue  # filtro soft-delete
+            cases.append({
+                "id": doc.id,
+                "aiTitle": data.get("ai", {}).get("title") or data.get("aiTitle", ""),
+                "complaint": data.get("clinical", {}).get("complaint") or data.get("complaint", ""),
+                "status": data.get("status", "draft"),
+                "updatedAt": data.get("updatedAt")
+            })
+    except Exception as e:
+        print(f"[WARN] list_cases: query com order_by falhou (índice?), usando fallback: {e}")
+        docs = db.collection("cases").where("uid", "==", uid).stream()
+        cases = []
+        for doc in docs:
+            data = doc.to_dict()
+            if data.get("status") == "deleted":
+                continue
+            cases.append({
+                "id": doc.id,
+                "aiTitle": data.get("ai", {}).get("title") or data.get("aiTitle", ""),
+                "complaint": data.get("clinical", {}).get("complaint") or data.get("complaint", ""),
+                "status": data.get("status", "draft"),
+                "updatedAt": data.get("updatedAt")
+            })
     return cases
 
 @router.get("/cases/{case_id}")
