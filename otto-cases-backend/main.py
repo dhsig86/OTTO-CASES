@@ -36,9 +36,13 @@ def load_directory_text(dir_path: str) -> str:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Domínios de produção
+        "https://otto-cases.vercel.app",
+        "https://cases.drdariohart.com",
         "https://pwa.otto.med.br",
         "https://cases.otto.med.br",
         "https://ottomed.com.br",
+        # Desenvolvimento local
         "http://localhost:5173",
         "http://localhost:3000",
     ],

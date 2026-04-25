@@ -404,19 +404,20 @@ export default function CaseWizard({ onBack, caseId }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
-      <header className="max-w-6xl mx-auto flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={onBack} className="mr-4 px-3 py-1.5 h-auto text-sm">
-            <ChevronLeft size={16} /> Voltar
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-3 md:p-8">
+      <header className="max-w-6xl mx-auto flex items-center justify-between mb-4 md:mb-8 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Button variant="outline" onClick={onBack} className="shrink-0 px-2 py-1.5 h-auto text-sm">
+            <ChevronLeft size={16} />
+            <span className="hidden sm:inline ml-1">Voltar</span>
           </Button>
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <Stethoscope size={24} />
+          <div className="bg-blue-600 p-1.5 md:p-2 rounded-lg text-white shrink-0">
+            <Stethoscope size={20} />
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Criador de Relato de Caso</h1>
+          <div className="min-w-0">
+            <h1 className="text-base md:text-xl font-bold tracking-tight truncate">Relato de Caso</h1>
             <div className="flex items-center gap-2">
-              <p className="text-slate-500 text-xs font-medium">Modelos CARE & SCARE</p>
+              <p className="text-slate-500 text-xs font-medium hidden sm:block">Modelos CARE & SCARE</p>
               {saveStatus && (
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${saveStatus.includes('Erro') || saveStatus.includes('Aguardando') ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50'}`}>
                   {saveStatus.includes('Salvando') ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={10} />}
@@ -426,7 +427,8 @@ export default function CaseWizard({ onBack, caseId }) {
             </div>
           </div>
         </div>
-        <div className="flex gap-3">
+        {/* Botões de referência — só visíveis em desktop */}
+        <div className="hidden md:flex gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={() => window.open("https://www.care-statement.org/checklist", "_blank")}>
             <FileText size={14} className="mr-1" /> CARE
           </Button>
@@ -440,19 +442,40 @@ export default function CaseWizard({ onBack, caseId }) {
             <BookOpen size={14} className="mr-1" /> Base do RAG
           </Button>
         </div>
+        {/* Mobile: só botão Base do RAG */}
+        <Button variant="outline" size="sm" className="md:hidden shrink-0 bg-blue-50 text-blue-700 border-blue-200" onClick={() => setShowReferences(true)}>
+          <BookOpen size={14} />
+        </Button>
       </header>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Formulário Interativo */}
         <div className="lg:col-span-8 flex flex-col gap-6">
-          <Card className="p-4 flex justify-between overflow-x-auto">
-            {steps.map((s, idx) => (
-              <div key={s.id} className={`flex items-center gap-2 px-3 py-1 rounded-full whitespace-nowrap ${step === idx ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
-                {s.icon}
-                <span className="text-xs font-bold uppercase tracking-wider">{s.title}</span>
-                {idx < steps.length - 1 && <ChevronRight size={14} className="ml-2 text-slate-300" />}
+          {/* Stepper — desktop: todos os steps; mobile: step atual + progresso */}
+          <Card className="p-3 md:p-4">
+            {/* Mobile stepper */}
+            <div className="flex md:hidden items-center gap-3">
+              <div className="flex gap-1">
+                {steps.map((_, idx) => (
+                  <div key={idx} className={`h-1.5 rounded-full transition-all ${idx === step ? 'w-6 bg-blue-600' : idx < step ? 'w-3 bg-blue-300' : 'w-3 bg-slate-200'}`} />
+                ))}
               </div>
-            ))}
+              <div className="flex items-center gap-1.5 text-blue-600">
+                {steps[step].icon}
+                <span className="text-xs font-bold uppercase tracking-wider">{steps[step].title}</span>
+              </div>
+              <span className="ml-auto text-xs text-slate-400 font-medium">{step + 1}/{steps.length}</span>
+            </div>
+            {/* Desktop stepper */}
+            <div className="hidden md:flex justify-between overflow-x-auto">
+              {steps.map((s, idx) => (
+                <div key={s.id} className={`flex items-center gap-2 px-3 py-1 rounded-full whitespace-nowrap ${step === idx ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+                  {s.icon}
+                  <span className="text-xs font-bold uppercase tracking-wider">{s.title}</span>
+                  {idx < steps.length - 1 && <ChevronRight size={14} className="ml-2 text-slate-300" />}
+                </div>
+              ))}
+            </div>
           </Card>
 
           <Card className="p-6 md:p-8 min-h-[500px] flex flex-col relative text-left">
@@ -634,8 +657,8 @@ export default function CaseWizard({ onBack, caseId }) {
           </Card>
         </div>
 
-        {/* Lado Direito: Pôster Preview */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        {/* Lado Direito: Pôster Preview — oculto em mobile/portrait */}
+        <div className="hidden lg:flex lg:col-span-4 flex-col gap-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-700 flex items-center gap-2"><Eye size={18} /> Preview do E-Pôster</h3>
             <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-500 uppercase tracking-tighter">1080x1920 PDF</span>
