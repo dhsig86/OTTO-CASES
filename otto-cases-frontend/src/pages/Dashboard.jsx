@@ -15,6 +15,7 @@ export default function Dashboard({ onNewCase, onOpenCase, onLogout }) {
         setSavedCases(response.data || []);
       } catch (err) {
         console.error("Erro ao carregar casos:", err);
+        setSavedCases([]);
       } finally {
         setLoading(false);
       }

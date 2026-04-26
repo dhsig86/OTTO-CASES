@@ -71,7 +71,7 @@ export const AuthProvider = ({ children }) => {
                     }
                     return prev;
                 });
-            }, 6000);
+            }, 10000);
 
             return () => {
                 window.removeEventListener('message', handleMessage);
